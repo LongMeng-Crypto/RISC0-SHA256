@@ -1,0 +1,27 @@
+[workspace]
+members = [
+    "integrations/opt2/host",
+    "integrations/opt2/methods",
+    "vendor/risc0_sha256_backend/crates/risc0-circuit-recursion",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+
+# Frozen RISC Zero 3.0.4 SHA-256 proof stack extracted from DAA_FULL.
+# Keep the execution/composite crates pinned here; succinct support is layered
+# through risc0-zkvm's recursion modules and must not alter the composite path.
+[patch.crates-io]
+risc0-zkvm = { path = "vendor/risc0_sha256_backend/crates/risc0-zkvm" }
+risc0-zkp = { path = "vendor/risc0_sha256_backend/crates/risc0-zkp" }
+risc0-circuit-rv32im = { path = "vendor/risc0_sha256_backend/crates/risc0-circuit-rv32im" }
+risc0-circuit-recursion = { path = "vendor/risc0_sha256_backend/crates/risc0-circuit-recursion" }
+
+[profile.dev]
+opt-level = 3
+
+[profile.release]
+debug = 1
+lto = true

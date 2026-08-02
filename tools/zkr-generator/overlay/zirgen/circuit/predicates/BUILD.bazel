@@ -1,0 +1,88 @@
+load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
+load("//bazel/rules/zirgen:edsl-defs.bzl", "build_circuit")
+
+package(
+    default_visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "lib",
+    srcs = [
+        "predicates.cpp",
+    ],
+    hdrs = [
+        "predicates.h",
+        "//zirgen/circuit/recursion",
+        "//zirgen/circuit/rv32im/v1/edsl:rv32im",
+    ],
+    deps = [
+        "//zirgen/circuit/recursion:lib",
+        "//zirgen/circuit/verify:lib",
+        "//zirgen/compiler/edsl",
+    ],
+)
+
+ZKRS = [
+    ("lift_rv32im_v2_" + str(po2))
+    for po2 in range(14, 25)
+] + [
+    ("lift_rv32im_v2_povw_" + str(po2))
+    for po2 in range(14, 25)
+] + [
+    ("lift_rv32im_v2_sha256_" + str(po2))
+    for po2 in range(14, 25)
+] + [
+    ("lift_rv32im_v2_povw_sha256_" + str(po2))
+    for po2 in range(14, 25)
+] + [
+    "test_recursion_circuit",
+    "join",
+    "join_sha256",
+    "join_povw",
+    "join_unwrap_povw",
+    "resolve",
+    "resolve_povw",
+    "resolve_unwrap_povw",
+    "identity",
+    "identity_sha256",
+    "unwrap_povw",
+    "union",
+]
+
+build_circuit(
+    name = "gen_predicates",
+    srcs = ["gen_predicates.cpp"],
+    outs = [fn for zkr in ZKRS for fn in [
+        zkr + ".zkr",
+        zkr + ".zkr.dbg",
+    ]],
+    data = ["//zirgen/circuit/rv32im/v2/dsl:validity.ir"],
+    extra_args = ["--rv32im-v2-ir=$(location //zirgen/circuit/rv32im/v2/dsl:validity.ir)"],
+    deps = [":lib"],
+)
+
+pkg_zip(
+    name = "recursion_zkr",
+    srcs = [x + ".zkr" for x in ZKRS],
+)
+
+genrule(
+    name = "actual_hashes",
+    srcs = [x + ".zkr" for x in ZKRS],
+    outs = ["actual_hashes.txt"],
+    cmd = "shasum -a 256 $(SRCS) | sed 's@ .*/@ @g' >$(location actual_hashes.txt)",
+)
+
+# Make sure that we only change predicate hashes on purpose, not by accident.
+sh_test(
+    name = "golden_hashes_test",
+    srcs = ["golden_hashes_test.sh"],
+    args = [
+        "$(location :actual_hashes.txt)",
+        "$(location :golden_hashes.txt)",
+    ],
+    data = [
+        ":actual_hashes.txt",
+        ":golden_hashes.txt",
+    ],
+)
