@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "integrations/opt2/host",
-    "integrations/opt2/methods",
+    "examples/backend-smoke/host",
+    "examples/backend-smoke/methods",
     "vendor/risc0_sha256_backend/crates/risc0-circuit-recursion",
 ]
 resolver = "2"
