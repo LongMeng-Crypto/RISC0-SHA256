@@ -163,7 +163,7 @@ impl CircuitHal<CpuHal> for CpuCircuitHal {
 }
 
 #[allow(dead_code)]
-pub(crate) fn recursion_prover(hashfn: &str) -> Result<Box<dyn RecursionProver>> {
+pub(crate) fn recursion_prover(hashfn: &str) -> Result<Rc<dyn RecursionProver>> {
     let suite = match hashfn {
         "poseidon2" => Poseidon2HashSuite::new_suite(),
         "poseidon_254" => Poseidon254HashSuite::new_suite(),
@@ -173,5 +173,5 @@ pub(crate) fn recursion_prover(hashfn: &str) -> Result<Box<dyn RecursionProver>>
 
     let hal = Rc::new(CpuHal::new(suite));
     let circuit_hal = Rc::new(CpuCircuitHal);
-    Ok(Box::new(RecursionProverImpl::new(hal, circuit_hal)))
+    Ok(Rc::new(RecursionProverImpl::new(hal, circuit_hal)))
 }

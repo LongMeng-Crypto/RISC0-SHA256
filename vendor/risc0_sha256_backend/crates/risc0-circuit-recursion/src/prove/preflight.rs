@@ -30,6 +30,7 @@ use risc0_zkp::{
 };
 use sha2::digest::generic_array::GenericArray;
 
+use super::RecursionInput;
 use crate::layout::{RecursionMicroInstLayout, CODE_LAYOUT};
 
 const CHECKED_COEFFS_PER_POLY: usize = 16;
@@ -63,7 +64,7 @@ pub(crate) struct PreflightTrace {
 
 pub(crate) struct Preflight {
     pub trace: PreflightTrace,
-    input: VecDeque<u32>,
+    input: RecursionInput,
 
     poseidon2_state: [Fp; CELLS],
     sha_state: [u32; DIGEST_WORDS],
@@ -87,7 +88,7 @@ pub(crate) struct Preflight {
 }
 
 impl Preflight {
-    pub fn new(input: VecDeque<u32>) -> Self {
+    pub fn new(input: RecursionInput) -> Self {
         Preflight {
             trace: PreflightTrace::default(),
             input,
@@ -123,11 +124,12 @@ impl Preflight {
         if k == 2 {
             self.cur_iop_body.extend(
                 self.input
-                    .drain(..count)
+                    .take(count)
+                    .into_iter()
                     .map(|elem| vec![Fp::new(elem & 0xffff), Fp::new(elem >> 16)]),
             );
         } else {
-            let arr: Vec<u32> = self.input.drain(..k * count).collect();
+            let arr = self.input.take(k * count);
             for i in 0..count {
                 let poly: Vec<Fp> = (0..k)
                     .map(|j| {

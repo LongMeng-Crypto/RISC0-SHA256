@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use std::sync::Arc;
+
 use anyhow::Result;
 
 use risc0_zkp::{
@@ -36,7 +38,7 @@ use super::RECURSION_CODE_SIZE;
 #[derive(Clone)]
 pub struct Program {
     /// The code of the program, encoded as Baby Bear field elements.
-    pub code: Vec<BabyBearElem>,
+    pub code: Arc<[BabyBearElem]>,
 
     /// The number of code columns.
     pub code_size: usize,
@@ -49,7 +51,12 @@ impl Program {
     /// Create a [Program] from a stream of data encoded by Zirgen.
     pub fn from_encoded(encoded: &[u32], po2: usize) -> Self {
         let prog = Self {
-            code: encoded.iter().copied().map(BabyBearElem::from).collect(),
+            code: encoded
+                .iter()
+                .copied()
+                .map(BabyBearElem::from)
+                .collect::<Vec<_>>()
+                .into(),
             code_size: RECURSION_CODE_SIZE,
             po2,
         };
@@ -65,7 +72,7 @@ impl Program {
 
     /// An iterator over the rows of the code group.
     pub fn code_by_row(&self) -> impl Iterator<Item = &[BabyBearElem]> {
-        self.code.as_slice().chunks(self.code_size)
+        self.code.as_ref().chunks(self.code_size)
     }
 
     /// Given a [Program] for the recursion circuit, compute the control ID as the FRI Merkle root

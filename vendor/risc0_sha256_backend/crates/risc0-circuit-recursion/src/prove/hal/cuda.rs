@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::rc::Rc;
+use std::{cell::OnceCell, rc::Rc};
 
 use anyhow::{bail, Result};
 use risc0_circuit_recursion_sys::{
@@ -184,23 +184,33 @@ impl<CH: CudaHash> CircuitHal<CudaHal<CH>> for CudaCircuitHal<CH> {
     }
 }
 
-pub(crate) fn recursion_prover(hashfn: &str) -> Result<Box<dyn RecursionProver>> {
+thread_local! {
+    /// Compression runs on one host thread. Keep the SHA-256 CUDA context and circuit HAL alive
+    /// across all lift, join, and identity jobs in that pipeline.
+    static SHA256_RECURSION_PROVER: OnceCell<Rc<dyn RecursionProver>> = OnceCell::new();
+}
+
+pub(crate) fn recursion_prover(hashfn: &str) -> Result<Rc<dyn RecursionProver>> {
     match hashfn {
         "poseidon2" => {
             let hal = Rc::new(CudaHalPoseidon2::new());
             let circuit_hal = Rc::new(CudaCircuitHalPoseidon2::new(hal.clone()));
-            Ok(Box::new(RecursionProverImpl::new(hal, circuit_hal)))
+            Ok(Rc::new(RecursionProverImpl::new(hal, circuit_hal)))
         }
         "poseidon_254" => {
             let hal = Rc::new(CudaHalPoseidon254::new());
             let circuit_hal = Rc::new(CudaCircuitHalPoseidon254::new(hal.clone()));
-            Ok(Box::new(RecursionProverImpl::new(hal, circuit_hal)))
+            Ok(Rc::new(RecursionProverImpl::new(hal, circuit_hal)))
         }
-        "sha-256" => {
-            let hal = Rc::new(CudaHalSha256::new());
-            let circuit_hal = Rc::new(CudaCircuitHalSha256::new(hal.clone()));
-            Ok(Box::new(RecursionProverImpl::new(hal, circuit_hal)))
-        }
+        "sha-256" => Ok(SHA256_RECURSION_PROVER.with(|cached| {
+            cached
+                .get_or_init(|| {
+                    let hal = Rc::new(CudaHalSha256::new());
+                    let circuit_hal = Rc::new(CudaCircuitHalSha256::new(hal.clone()));
+                    Rc::new(RecursionProverImpl::new(hal, circuit_hal))
+                })
+                .clone()
+        })),
         _ => bail!("Unsupported hashfn: {hashfn}"),
     }
 }

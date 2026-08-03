@@ -76,10 +76,10 @@ impl RecursionReceipt {
 }
 
 pub trait RecursionProver {
-    fn prove(&self, program: Program, input: VecDeque<u32>) -> Result<RecursionReceipt>;
+    fn prove(&self, program: &Program, input: RecursionInput) -> Result<RecursionReceipt>;
 }
 
-pub fn recursion_prover(hashfn: &str) -> Result<Box<dyn RecursionProver>> {
+pub fn recursion_prover(hashfn: &str) -> Result<Rc<dyn RecursionProver>> {
     cfg_if! {
         if #[cfg(feature = "cuda")] {
             self::hal::cuda::recursion_prover(hashfn)
@@ -95,7 +95,40 @@ pub fn recursion_prover(hashfn: &str) -> Result<Box<dyn RecursionProver>> {
 pub struct Prover {
     program: Program,
     hashfn: String,
-    input: VecDeque<u32>,
+    input: RecursionInput,
+}
+
+/// Segmented input tape for the recursion VM.
+///
+/// Receipt seals remain in separate allocations while inputs are assembled, avoiding repeated
+/// relocation of one monolithic queue. The tape is moved into preflight at prove time.
+#[derive(Default)]
+pub struct RecursionInput {
+    chunks: VecDeque<VecDeque<u32>>,
+}
+
+impl RecursionInput {
+    fn push(&mut self, input: &[u32]) {
+        if !input.is_empty() {
+            self.chunks.push_back(input.iter().copied().collect());
+        }
+    }
+
+    pub(crate) fn pop_front(&mut self) -> Option<u32> {
+        loop {
+            let chunk = self.chunks.front_mut()?;
+            if let Some(word) = chunk.pop_front() {
+                return Some(word);
+            }
+            self.chunks.pop_front();
+        }
+    }
+
+    pub(crate) fn take(&mut self, count: usize) -> Vec<u32> {
+        (0..count)
+            .map(|_| self.pop_front().expect("recursion input underflow"))
+            .collect()
+    }
 }
 
 /// Kinds of digests recognized by the recursion program language.
@@ -113,13 +146,13 @@ impl Prover {
         Self {
             program,
             hashfn: hashfn.to_string(),
-            input: VecDeque::new(),
+            input: RecursionInput::default(),
         }
     }
 
     /// Add a set of u32s to the input for the recursion program.
     pub fn add_input(&mut self, input: &[u32]) {
-        self.input.extend(input);
+        self.input.push(input);
     }
 
     /// Add a digest to the input for the recursion program.
@@ -144,7 +177,7 @@ impl Prover {
     /// program and input.
     pub fn run(&mut self) -> Result<RecursionReceipt> {
         let prover = recursion_prover(&self.hashfn)?;
-        prover.prove(self.program.clone(), self.input.clone())
+        prover.prove(&self.program, std::mem::take(&mut self.input))
     }
 }
 
@@ -162,15 +195,15 @@ where
     H: Hal<Field = BabyBear, Elem = BabyBearElem, ExtElem = BabyBearExtElem>,
     C: CircuitHal<H> + CircuitWitnessGenerator<H> + CircuitAccumulator<H>,
 {
-    fn prove(&self, program: Program, input: VecDeque<u32>) -> Result<RecursionReceipt> {
+    fn prove(&self, program: &Program, input: RecursionInput) -> Result<RecursionReceipt> {
         scope!("prove");
 
-        let preflight = self.preflight(&program, input)?;
+        let preflight = self.preflight(program, input)?;
 
         let witgen = WitnessGenerator::new(
             self.hal.as_ref(),
             self.circuit_hal.as_ref(),
-            &program,
+            program,
             &preflight,
         )?;
 
@@ -239,7 +272,7 @@ where
         Self { hal, circuit_hal }
     }
 
-    fn preflight(&self, program: &Program, input: VecDeque<u32>) -> Result<Preflight> {
+    fn preflight(&self, program: &Program, input: RecursionInput) -> Result<Preflight> {
         scope!("preflight");
 
         let mut preflight = Preflight::new(input);

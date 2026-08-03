@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::io::{Cursor, Read as _};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    io::{Cursor, Read as _},
+};
 
 use anyhow::{bail, Context as _, Result};
 
@@ -20,10 +24,22 @@ use super::Program;
 
 const ZKR_ZIP: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/recursion_zkr.zip"));
 
+thread_local! {
+    static PROGRAM_CACHE: RefCell<HashMap<(String, usize), Program>> =
+        RefCell::new(HashMap::new());
+}
+
 pub fn get_zkr(name: &str, po2: usize) -> Result<Program> {
+    let key = (name.to_owned(), po2);
+    if let Some(program) = PROGRAM_CACHE.with(|cache| cache.borrow().get(&key).cloned()) {
+        return Ok(program);
+    }
+
     let mut zip = zip::ZipArchive::new(Cursor::new(ZKR_ZIP))?;
     let encoded = extract_zkr(&mut zip, name)?;
-    Ok(Program::from_encoded(&encoded, po2))
+    let program = Program::from_encoded(&encoded, po2);
+    PROGRAM_CACHE.with(|cache| cache.borrow_mut().insert(key, program.clone()));
+    Ok(program)
 }
 
 /// Iterate over all provided zkr programs.
