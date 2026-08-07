@@ -25,10 +25,10 @@ local development, add the following to the consuming workspace root:
 
 ```toml
 [patch.crates-io]
-risc0-zkvm = { path = "../RISC0-SHA256-3.0.4/vendor/risc0_sha256_backend/crates/risc0-zkvm" }
-risc0-zkp = { path = "../RISC0-SHA256-3.0.4/vendor/risc0_sha256_backend/crates/risc0-zkp" }
-risc0-circuit-rv32im = { path = "../RISC0-SHA256-3.0.4/vendor/risc0_sha256_backend/crates/risc0-circuit-rv32im" }
-risc0-circuit-recursion = { path = "../RISC0-SHA256-3.0.4/vendor/risc0_sha256_backend/crates/risc0-circuit-recursion" }
+risc0-zkvm = { path = "../RISC0-SHA256/vendor/risc0_sha256_backend/crates/risc0-zkvm" }
+risc0-zkp = { path = "../RISC0-SHA256/vendor/risc0_sha256_backend/crates/risc0-zkp" }
+risc0-circuit-rv32im = { path = "../RISC0-SHA256/vendor/risc0_sha256_backend/crates/risc0-circuit-rv32im" }
+risc0-circuit-recursion = { path = "../RISC0-SHA256/vendor/risc0_sha256_backend/crates/risc0-circuit-recursion" }
 ```
 
 Adjust the relative prefix for the consumer's location. For reproducible
