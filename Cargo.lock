@@ -3727,7 +3727,9 @@ dependencies = [
 name = "risc0-sha256-backend-smoke"
 version = "0.1.0"
 dependencies = [
+ "risc0-circuit-rv32im",
  "risc0-sha256-backend-smoke-methods",
+ "risc0-zkp",
  "risc0-zkvm",
 ]
 

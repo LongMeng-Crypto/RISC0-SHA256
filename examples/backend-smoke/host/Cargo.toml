@@ -3,6 +3,7 @@ name = "risc0-sha256-backend-smoke"
 version = "0.1.0"
 edition = "2021"
 publish = false
+default-run = "risc0-sha256-backend-smoke"
 
 [features]
 cuda = ["risc0-zkvm/cuda"]
@@ -10,3 +11,5 @@ cuda = ["risc0-zkvm/cuda"]
 [dependencies]
 methods = { package = "risc0-sha256-backend-smoke-methods", path = "../methods" }
 risc0-zkvm = { version = "^3.0.4", features = ["prove"] }
+risc0-zkp = "^3.0.4"
+risc0-circuit-rv32im = "^4.0.4"

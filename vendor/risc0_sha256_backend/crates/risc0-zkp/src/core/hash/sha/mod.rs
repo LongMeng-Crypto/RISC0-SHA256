@@ -18,6 +18,7 @@ pub mod cpu;
 pub mod guest;
 mod rng;
 pub mod rust_crypto;
+pub mod wide;
 
 // Pick the appropriate implementation of SHA-256 depending on whether we are
 // in the zkVM guest.

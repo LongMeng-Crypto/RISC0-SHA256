@@ -53,6 +53,78 @@ const RHO: f32 = 1.0 / INV_RATE as f32;
 /// [BCIKS21](https://eprint.iacr.org/2020/654.pdf)
 const ETA: f32 = 0.05;
 
+/// Parameters for the Toy Problem soundness model.
+///
+/// This is deliberately independent of [`Hal`], so candidate profiles can be evaluated before a
+/// matching prover implementation exists. `hash_collision_bits` is the collision-security bound
+/// of the commitment digest (128 for one SHA-256 lane, 256 for two independent lanes).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ToyModelConfig {
+    pub queries: usize,
+    pub inv_rate: usize,
+    pub extension_degree: usize,
+    pub hash_collision_bits: f64,
+}
+
+impl ToyModelConfig {
+    /// The unchanged RISC Zero parameters used by `SecurityProfile::Legacy97`.
+    pub const LEGACY97: Self = Self {
+        queries: crate::QUERIES,
+        inv_rate: INV_RATE,
+        extension_degree: 4,
+        hash_collision_bits: 128.0,
+    };
+}
+
+/// Individual error terms and their combined security in the Toy Problem model.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ToyModelReport {
+    pub plonk_plookup_error: f64,
+    pub constraint_error: f64,
+    pub fri_query_error: f64,
+    pub hash_collision_error: f64,
+    pub total_error: f64,
+    pub security_bits: f64,
+}
+
+/// Evaluate candidate parameters using `f64`, including the commitment collision bound.
+///
+/// `trace_domain_size` is the number of trace rows. The current circuit stores each logical
+/// accumulator as four base-field columns; this routine keeps the number of logical accumulators
+/// fixed when projecting a different extension degree.
+pub fn toy_model_report(
+    taps: &TapSet,
+    trace_domain_size: usize,
+    config: ToyModelConfig,
+) -> ToyModelReport {
+    assert!(config.queries > 0);
+    assert!(config.inv_rate > 1);
+    assert!(config.extension_degree > 0);
+    assert!(config.hash_collision_bits > 0.0);
+
+    let field_size = baby_bear::P as f64;
+    let extension_field_size = field_size.powi(config.extension_degree as i32);
+    let logical_accumulators = taps.group_size(REGISTER_GROUP_ACCUM) as f64 / 4.0;
+    let max_degree = 5.0;
+    let plonk_plookup_error = logical_accumulators * (max_degree - 2.0)
+        * trace_domain_size as f64
+        / extension_field_size;
+    let constraint_error = extension_field_size.recip();
+    let fri_query_error = (1.0 / config.inv_rate as f64).powi(config.queries as i32);
+    let hash_collision_error = 2.0f64.powf(-config.hash_collision_bits);
+    let total_error =
+        plonk_plookup_error + constraint_error + fri_query_error + hash_collision_error;
+
+    ToyModelReport {
+        plonk_plookup_error,
+        constraint_error,
+        fri_query_error,
+        hash_collision_error,
+        total_error,
+        security_bits: -total_error.log2(),
+    }
+}
+
 /// Compute the security level of the system based on the proven FRI
 /// list-decoding regime (up to 1-sqrt(rate)).
 pub fn proven<H: Hal>(taps: &TapSet, coeffs_size: usize) -> f32 {

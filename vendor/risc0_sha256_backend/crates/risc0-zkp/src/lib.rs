@@ -20,6 +20,7 @@
 extern crate alloc;
 
 pub mod adapter;
+pub mod baby_bear_ext6;
 pub mod core;
 #[cfg(feature = "prove")]
 pub mod hal;
