@@ -88,3 +88,38 @@ fn main() {
     println!("proof_bytes={}", receipt.seal_size());
     println!("segments={}", prove_info.stats.segments);
 }
+
+#[cfg(test)]
+mod tests {
+    use risc0_zkvm::{ProverOpts, ReceiptKind, SecurityProfile};
+
+    #[test]
+    fn legacy97_remains_the_default_for_all_supported_backends() {
+        let cases = [
+            ProverOpts::default(),
+            ProverOpts::composite(),
+            ProverOpts::succinct(),
+            ProverOpts::composite().with_hashfn("sha-256".to_owned()),
+            ProverOpts::succinct().with_hashfn("sha-256".to_owned()),
+        ];
+        for opts in cases {
+            assert_eq!(opts.security_profile, SecurityProfile::Legacy97);
+        }
+
+        let defaults = ProverOpts::default();
+        assert_eq!(defaults.hashfn, "poseidon2");
+        assert_eq!(defaults.receipt_kind, ReceiptKind::Composite);
+    }
+
+    #[test]
+    fn legacy97_can_be_selected_explicitly_without_changing_options() {
+        let original = ProverOpts::succinct().with_hashfn("sha-256".to_owned());
+        let selected = original
+            .clone()
+            .with_security_profile(SecurityProfile::Legacy97);
+        assert_eq!(selected.security_profile, SecurityProfile::Legacy97);
+        assert_eq!(selected.hashfn, original.hashfn);
+        assert_eq!(selected.receipt_kind, original.receipt_kind);
+        assert_eq!(selected.control_ids, original.control_ids);
+    }
+}

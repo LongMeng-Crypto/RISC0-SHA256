@@ -224,6 +224,11 @@ message ProverOpts {
   repeated base.Digest control_ids = 4;
   uint64 max_segment_po2 = 5;
   bool is_dev_mode = 6;
+  SecurityProfile security_profile = 7;
+}
+
+enum SecurityProfile {
+  LEGACY_97 = 0;
 }
 
 enum ReceiptKind {

@@ -52,3 +52,17 @@ pub const FRI_FOLD: usize = 1 << FRI_FOLD_PO2;
 
 /// FRI continues until the degree of the FRI polynomial reaches FRI_MIN_DEGREE
 const FRI_MIN_DEGREE: usize = 256;
+
+#[cfg(test)]
+mod legacy97_parameter_tests {
+    use risc0_core::field::{baby_bear::BabyBearExtElem, ExtElem};
+
+    #[test]
+    fn legacy97_parameters_are_frozen() {
+        assert_eq!(super::QUERIES, 50);
+        assert_eq!(super::INV_RATE, 4);
+        assert_eq!(super::FRI_FOLD, 16);
+        assert_eq!(super::FRI_MIN_DEGREE, 256);
+        assert_eq!(BabyBearExtElem::EXT_SIZE, 4);
+    }
+}

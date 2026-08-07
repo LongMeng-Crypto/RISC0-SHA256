@@ -26,6 +26,13 @@ use crate::receipt::DEFAULT_MAX_PO2;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct ProverOpts {
+    /// Security parameters used by the STARK proving protocol.
+    ///
+    /// [`SecurityProfile::Legacy97`] preserves the RISC Zero 3.0.4 parameter set and is the
+    /// only profile currently implemented.
+    #[serde(default)]
+    pub security_profile: SecurityProfile,
+
     /// Identifier of the hash function to use for the STARK proving protocol.
     pub hashfn: String,
 
@@ -76,6 +83,21 @@ pub enum ReceiptKind {
     Groth16,
 }
 
+/// A versioned set of cryptographic parameters for the STARK proving protocol.
+///
+/// This enum is intentionally introduced before additional parameter sets are implemented so
+/// callers can select a profile explicitly without changing the legacy default. Adding a variant
+/// does not by itself enable a new parameter set: the prover and verifier implementation must also
+/// support that profile end to end.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SecurityProfile {
+    /// The original RISC Zero 3.0.4 parameters: 50 FRI queries, inverse rate 4, a degree-4
+    /// BabyBear extension field, and the existing 256-bit commitment digest.
+    #[default]
+    Legacy97,
+}
+
 impl Default for ProverOpts {
     /// Return [ProverOpts] that are intended to work for most applications.
     ///
@@ -83,6 +105,7 @@ impl Default for ProverOpts {
     /// can be compressed using the [Prover::compress][super::Prover::compress] methods.
     fn default() -> Self {
         Self {
+            security_profile: SecurityProfile::Legacy97,
             hashfn: "poseidon2".to_string(),
             prove_guest_errors: false,
             receipt_kind: ReceiptKind::Composite,
@@ -103,6 +126,7 @@ impl ProverOpts {
     #[stability::unstable]
     pub fn from_max_po2(po2_max: usize) -> Self {
         Self {
+            security_profile: SecurityProfile::Legacy97,
             hashfn: "poseidon2".to_string(),
             prove_guest_errors: false,
             receipt_kind: ReceiptKind::Composite,
@@ -132,6 +156,7 @@ impl ProverOpts {
     /// and supports compression via recursion.
     pub fn composite() -> Self {
         Self {
+            security_profile: SecurityProfile::Legacy97,
             hashfn: "poseidon2".to_string(),
             prove_guest_errors: false,
             receipt_kind: ReceiptKind::Composite,
@@ -145,6 +170,7 @@ impl ProverOpts {
     /// of execution.
     pub fn succinct() -> Self {
         Self {
+            security_profile: SecurityProfile::Legacy97,
             hashfn: "poseidon2".to_string(),
             prove_guest_errors: false,
             receipt_kind: ReceiptKind::Succinct,
@@ -160,6 +186,7 @@ impl ProverOpts {
     /// Only supported with Docker installed.
     pub fn groth16() -> Self {
         Self {
+            security_profile: SecurityProfile::Legacy97,
             hashfn: "poseidon2".to_string(),
             prove_guest_errors: false,
             receipt_kind: ReceiptKind::Groth16,
@@ -172,6 +199,14 @@ impl ProverOpts {
     /// Return [ProverOpts] with the hashfn set to the given value.
     pub fn with_hashfn(self, hashfn: String) -> Self {
         Self { hashfn, ..self }
+    }
+
+    /// Return [ProverOpts] with the security profile set to the given value.
+    pub fn with_security_profile(self, security_profile: SecurityProfile) -> Self {
+        Self {
+            security_profile,
+            ..self
+        }
     }
 
     /// Return [ProverOpts] with prove_guest_errors set to the given value.
@@ -227,5 +262,36 @@ impl ProverOpts {
     ) -> Result<risc0_zkp::core::hash::HashSuite<risc0_zkp::field::baby_bear::BabyBear>> {
         risc0_zkp::core::hash::hash_suite_from_name(&self.hashfn)
             .ok_or_else(|| anyhow::anyhow!("unsupported hash suite: {}", self.hashfn))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ProverOpts, ReceiptKind, SecurityProfile};
+
+    #[test]
+    fn legacy97_remains_the_default_profile() {
+        let opts = ProverOpts::default();
+        assert_eq!(opts.security_profile, SecurityProfile::Legacy97);
+        assert_eq!(opts.hashfn, "poseidon2");
+        assert_eq!(opts.receipt_kind, ReceiptKind::Composite);
+    }
+
+    #[test]
+    fn constructors_and_hash_selection_preserve_legacy97() {
+        for opts in [
+            ProverOpts::composite(),
+            ProverOpts::succinct(),
+            ProverOpts::composite().with_hashfn("sha-256".to_owned()),
+            ProverOpts::succinct().with_hashfn("sha-256".to_owned()),
+        ] {
+            assert_eq!(opts.security_profile, SecurityProfile::Legacy97);
+        }
+    }
+
+    #[test]
+    fn legacy97_can_be_selected_explicitly() {
+        let opts = ProverOpts::default().with_security_profile(SecurityProfile::Legacy97);
+        assert_eq!(opts.security_profile, SecurityProfile::Legacy97);
     }
 }

@@ -132,7 +132,7 @@ pub use {
                 default::DefaultProver,
                 default_executor, default_prover,
                 external::ExternalProver,
-                opts::{ProverOpts, ReceiptKind},
+                opts::{ProverOpts, ReceiptKind, SecurityProfile},
                 Executor, Prover,
             },
         },

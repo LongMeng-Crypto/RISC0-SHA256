@@ -430,6 +430,8 @@ pub struct ProverOpts {
     pub max_segment_po2: u64,
     #[prost(bool, tag = "6")]
     pub is_dev_mode: bool,
+    #[prost(enumeration = "SecurityProfile", tag = "7")]
+    pub security_profile: i32,
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -750,6 +752,26 @@ pub enum ReceiptKind {
     Composite = 0,
     Succinct = 1,
     Groth16 = 2,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum SecurityProfile {
+    Legacy97 = 0,
+}
+impl SecurityProfile {
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            SecurityProfile::Legacy97 => "LEGACY_97",
+        }
+    }
+
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "LEGACY_97" => Some(Self::Legacy97),
+            _ => None,
+        }
+    }
 }
 impl ReceiptKind {
     /// String value of the enum field names used in the ProtoBuf definition.
