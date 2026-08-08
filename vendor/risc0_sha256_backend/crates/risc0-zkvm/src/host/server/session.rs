@@ -141,15 +141,9 @@ impl Segment {
     }
 }
 
-/// Profile-specific circuit preflight data.
-pub(crate) enum SegmentPreflight {
-    Legacy97(risc0_circuit_rv32im::prove::PreflightResults),
-    Bits129(risc0_circuit_rv32im_bits129::prove::PreflightResults),
-}
-
 /// The results of running preflight on a [Segment].
 pub struct PreflightResults {
-    pub(crate) inner: SegmentPreflight,
+    pub(crate) inner: risc0_circuit_rv32im::prove::PreflightResults,
 
     pub(crate) terminate_state: Option<TerminateState>,
     pub(crate) output: Option<Output>,

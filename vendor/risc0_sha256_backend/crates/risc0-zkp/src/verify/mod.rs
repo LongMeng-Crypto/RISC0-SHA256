@@ -155,7 +155,6 @@ where
     tot_cycles: usize,
     // Merkle tree verifiers, indexed by register group id
     merkle_verifiers: Vec<Option<MerkleTreeVerifier<'a>>>,
-    queries: usize,
 }
 
 impl<F: Field> VerifyParams<F> for Verifier<'_, F> {}
@@ -164,17 +163,6 @@ impl<'a, F: Field> Verifier<'a, F> {
     /// Start a new verification session.
     #[stability::unstable]
     pub fn new(taps: &'a TapSet<'a>, suite: &'a HashSuite<F>, seal: &'a [u32]) -> Self {
-        Self::new_with_queries(taps, suite, seal, QUERIES)
-    }
-
-    /// Start verification with an explicit FRI query count.
-    pub fn new_with_queries(
-        taps: &'a TapSet<'a>,
-        suite: &'a HashSuite<F>,
-        seal: &'a [u32],
-        queries: usize,
-    ) -> Self {
-        assert!(queries > 0);
         trace_if_enabled!("Starting verify");
         Self {
             taps,
@@ -185,7 +173,6 @@ impl<'a, F: Field> Verifier<'a, F> {
             merkle_verifiers: core::iter::repeat_with(|| None)
                 .take(taps.num_groups())
                 .collect(),
-            queries,
         }
     }
 
@@ -223,13 +210,8 @@ impl<'a, F: Field> Verifier<'a, F> {
         let domain = INV_RATE * self.tot_cycles;
         let hashfn = self.suite.hashfn.as_ref();
 
-        let merkle = MerkleTreeVerifier::new(
-            self.iop().deref_mut(),
-            hashfn,
-            domain,
-            group_size,
-            self.queries,
-        )?;
+        let merkle =
+            MerkleTreeVerifier::new(self.iop().deref_mut(), hashfn, domain, group_size, QUERIES)?;
         self.merkle_verifiers[reg_group_id] = Some(merkle);
         let root = self.merkle_verifiers[reg_group_id].as_ref().unwrap().root();
         trace_if_enabled!(
@@ -321,7 +303,7 @@ impl<'a, F: Field> Verifier<'a, F> {
             hashfn,
             domain,
             Self::CHECK_SIZE,
-            self.queries,
+            QUERIES,
         )?;
         trace_if_enabled!("Check merkle root: {}", check_merkle.root());
 
@@ -369,21 +351,29 @@ impl<'a, F: Field> Verifier<'a, F> {
         let result = validity_fn(&poly_mix, &eval_u);
         trace_if_enabled!("Computed polynomial: {result:?}");
 
-        // Reconstruct the extension-valued check polynomial. The prover splits
-        // each extension component into INV_RATE residue classes.
+        // Now generate the check polynomial
+        // TODO: This currently treats the extension degree as hardcoded at 4, with
+        // the structure of the code and the value of `remap` (and how it is
+        // accessed) only working in the extension degree = 4 case.
+        // However, for generic fields the extension degree may be different
+        // TODO: Therefore just using the to/from baby bear shims for now
         let mut check = F::ExtElem::default();
         let remap = [0, 2, 1, 3];
+        let fp0 = F::Elem::ZERO;
+        let fp1 = F::Elem::ONE;
         for (i, rmi) in remap.iter().enumerate() {
-            for component in 0..F::ExtElem::EXT_SIZE {
-                let basis = F::ExtElem::from_subelems((0..F::ExtElem::EXT_SIZE).map(|index| {
-                    if index == component {
-                        F::Elem::ONE
-                    } else {
-                        F::Elem::ZERO
-                    }
-                }));
-                check += coeff_u[num_taps + component * INV_RATE + rmi] * z.pow(i) * basis;
-            }
+            check += coeff_u[num_taps + rmi]
+                * z.pow(i)
+                * F::ExtElem::from_subelems([fp1, fp0, fp0, fp0]);
+            check += coeff_u[num_taps + rmi + 4]
+                * z.pow(i)
+                * F::ExtElem::from_subelems([fp0, fp1, fp0, fp0]);
+            check += coeff_u[num_taps + rmi + 8]
+                * z.pow(i)
+                * F::ExtElem::from_subelems([fp0, fp0, fp1, fp0]);
+            check += coeff_u[num_taps + rmi + 12]
+                * z.pow(i)
+                * F::ExtElem::from_subelems([fp0, fp0, fp0, fp1]);
         }
         let three = F::Elem::from_u64(3);
         check *= (F::ExtElem::from_subfield(&three) * z).pow(self.tot_cycles) - F::ExtElem::ONE;
@@ -513,27 +503,11 @@ where
     C: CircuitCoreDef<F>,
     CheckCode: Fn(u32, &Digest) -> Result<(), VerificationError>,
 {
-    verify_with_queries(circuit, suite, seal, QUERIES, check_code)
-}
-
-/// Verify using an explicit FRI query count.
-pub fn verify_with_queries<F, C, CheckCode>(
-    circuit: &C,
-    suite: &HashSuite<F>,
-    seal: &[u32],
-    queries: usize,
-    check_code: CheckCode,
-) -> Result<(), VerificationError>
-where
-    F: Field,
-    C: CircuitCoreDef<F>,
-    CheckCode: Fn(u32, &Digest) -> Result<(), VerificationError>,
-{
     if seal.is_empty() {
         return Err(VerificationError::ReceiptFormatError);
     }
 
-    let mut verifier = Verifier::<F>::new_with_queries(circuit.get_taps(), suite, seal, queries);
+    let mut verifier = Verifier::<F>::new(circuit.get_taps(), suite, seal);
     verifier.commit_circuit_info(&C::CIRCUIT_INFO);
 
     // Read the globals (i.e. outputs) from the IOP, and mix them into the Fiat-Shamir state.

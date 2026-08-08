@@ -30,8 +30,9 @@ use crate::{
         ReceiptMetadata, SegmentReceipt, SuccinctReceipt,
     },
     Assumption, Assumptions, ExitCode, GenericReceipt, Groth16Receipt, Input, Journal, MaybePruned,
-    Output, ProveInfo, ProverOpts, Receipt, ReceiptClaim, ReceiptKind, SecurityProfile,
-    SessionStats, TraceEvent, Work, WorkClaim,
+    Output, ProveInfo, ProverOpts, Receipt, ReceiptClaim, ReceiptKind, SecurityProfile, SessionStats,
+    TraceEvent,
+    Work, WorkClaim,
 };
 
 mod ver {
@@ -278,7 +279,6 @@ impl TryFrom<pb::api::ProverOpts> for ProverOpts {
         Ok(Self {
             security_profile: match opts.security_profile {
                 0 => SecurityProfile::Legacy97,
-                1 => SecurityProfile::Bits129,
                 value => panic!("Unknown security profile number: {value}"),
             },
             hashfn: opts.hashfn,

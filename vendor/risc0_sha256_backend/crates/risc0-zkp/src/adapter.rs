@@ -141,8 +141,6 @@ pub struct PolyExtStepDef {
 pub enum PolyExtStep {
     Const(u32),
     ConstExt(u32, u32, u32, u32),
-    /// A constant in the degree-six BabyBear extension used by Bits129.
-    ConstExt6(u32, u32, u32, u32, u32, u32),
     Get(usize),
     GetGlobal(Arg, usize),
     Add(Var, Var),
@@ -169,10 +167,10 @@ struct PolyExtExecutor<'a, F: Field> {
     fp_expected: usize,
     mix_expected: usize,
     fp_vars: Vec<F::ExtElem>,
-    #[cfg(feature = "std")]
+    #[cfg(feature = "circuit_debug")]
     fp_index: Vec<usize>,
     mix_vars: Vec<MixState<F::ExtElem>>,
-    #[cfg(feature = "std")]
+    #[cfg(feature = "circuit_debug")]
     mix_index: Vec<usize>,
 }
 
@@ -185,10 +183,10 @@ impl<'a, F: Field> PolyExtExecutor<'a, F> {
             fp_expected,
             mix_expected,
             fp_vars: Vec::with_capacity(fp_expected),
-            #[cfg(feature = "std")]
+            #[cfg(feature = "circuit_debug")]
             fp_index: Vec::with_capacity(fp_expected),
             mix_vars: Vec::with_capacity(mix_expected),
-            #[cfg(feature = "std")]
+            #[cfg(feature = "circuit_debug")]
             mix_index: Vec::with_capacity(mix_expected),
         }
     }
@@ -213,15 +211,13 @@ impl<'a, F: Field> PolyExtExecutor<'a, F> {
             "Miscalculated capacity for mix_vars"
         );
 
-        #[cfg(feature = "std")]
-        if std::env::var_os("RISC0_RUN_CONSTRAINT_DEBUG").is_some() {
-            self.debug(self.def.ret);
-        }
+        #[cfg(feature = "circuit_debug")]
+        self.debug(self.def.ret);
 
         self.mix_vars[self.def.ret]
     }
 
-    #[cfg(feature = "std")]
+    #[cfg(feature = "circuit_debug")]
     fn debug(&mut self, next: Var) {
         let op_index = self.mix_index[next];
         let op = &self.def.block[op_index];
@@ -238,12 +234,7 @@ impl<'a, F: Field> PolyExtExecutor<'a, F> {
                     tracing::debug!("expr: {}", self.debug_expr(*inner));
                     let inner_idx = self.fp_index[*inner];
                     let op = &self.def.block[inner_idx];
-                    panic!(
-                        "eqz failure: [f:{}] block_op={} {op:?}; expr={}",
-                        *inner,
-                        inner_idx,
-                        self.debug_expr(*inner)
-                    );
+                    panic!("eqz failure: [f:{}] {op:?}", *inner);
                 }
                 self.debug(*chain);
             }
@@ -271,16 +262,13 @@ impl<'a, F: Field> PolyExtExecutor<'a, F> {
         }
     }
 
-    #[cfg(feature = "std")]
+    #[cfg(feature = "circuit_debug")]
     fn debug_expr(&self, next: Var) -> String {
         let op_index = self.fp_index[next];
         let op = &self.def.block[op_index];
         match op {
             PolyExtStep::Const(x) => format!("{x:?}"),
             PolyExtStep::ConstExt(x0, x1, x2, x3) => format!("({x0:?}, {x1:?}, {x2:?}, {x3:?})"),
-            PolyExtStep::ConstExt6(x0, x1, x2, x3, x4, x5) => {
-                format!("({x0:?}, {x1:?}, {x2:?}, {x3:?}, {x4:?}, {x5:?})")
-            }
             PolyExtStep::Get(x) => format!("Get({x})"),
             PolyExtStep::GetGlobal(arg, x) => format!("GetGlobal({arg}, {x})"),
             PolyExtStep::Add(x, y) => {
@@ -305,13 +293,13 @@ impl<'a, F: Field> PolyExtExecutor<'a, F> {
     }
 
     fn push_fp(&mut self, _idx: usize, val: F::ExtElem) {
-        #[cfg(feature = "std")]
+        #[cfg(feature = "circuit_debug")]
         self.fp_index.push(_idx);
         self.fp_vars.push(val);
     }
 
     fn push_mix(&mut self, _idx: usize, mix: MixState<F::ExtElem>) {
-        #[cfg(feature = "std")]
+        #[cfg(feature = "circuit_debug")]
         self.mix_index.push(_idx);
         self.mix_vars.push(mix);
     }
@@ -336,19 +324,6 @@ impl<'a, F: Field> PolyExtExecutor<'a, F> {
                     F::Elem::from_u64(*x1 as u64),
                     F::Elem::from_u64(*x2 as u64),
                     F::Elem::from_u64(*x3 as u64),
-                ]);
-                trace_if_enabled!("[f:{}] {op:?} -> {val:?}", self.fp_index());
-                self.push_fp(idx, val);
-            }
-            PolyExtStep::ConstExt6(x0, x1, x2, x3, x4, x5) => {
-                assert_eq!(F::ExtElem::EXT_SIZE, 6);
-                let val = F::ExtElem::from_subelems([
-                    F::Elem::from_u64(*x0 as u64),
-                    F::Elem::from_u64(*x1 as u64),
-                    F::Elem::from_u64(*x2 as u64),
-                    F::Elem::from_u64(*x3 as u64),
-                    F::Elem::from_u64(*x4 as u64),
-                    F::Elem::from_u64(*x5 as u64),
                 ]);
                 trace_if_enabled!("[f:{}] {op:?} -> {val:?}", self.fp_index());
                 self.push_fp(idx, val);

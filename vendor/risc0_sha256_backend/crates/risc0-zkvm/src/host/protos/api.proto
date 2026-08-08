@@ -229,7 +229,6 @@ message ProverOpts {
 
 enum SecurityProfile {
   LEGACY_97 = 0;
-  BITS_129 = 1;
 }
 
 enum ReceiptKind {

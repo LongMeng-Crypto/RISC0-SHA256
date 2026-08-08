@@ -758,20 +758,17 @@ pub enum ReceiptKind {
 #[repr(i32)]
 pub enum SecurityProfile {
     Legacy97 = 0,
-    Bits129 = 1,
 }
 impl SecurityProfile {
     pub fn as_str_name(&self) -> &'static str {
         match self {
             SecurityProfile::Legacy97 => "LEGACY_97",
-            SecurityProfile::Bits129 => "BITS_129",
         }
     }
 
     pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
         match value {
             "LEGACY_97" => Some(Self::Legacy97),
-            "BITS_129" => Some(Self::Bits129),
             _ => None,
         }
     }

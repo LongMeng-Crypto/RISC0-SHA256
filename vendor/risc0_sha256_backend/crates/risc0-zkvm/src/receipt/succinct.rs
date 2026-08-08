@@ -27,10 +27,6 @@ use risc0_circuit_recursion::{
     control_id::{ALLOWED_CONTROL_ROOT, MIN_LIFT_PO2, POSEIDON2_CONTROL_IDS, SHA256_CONTROL_IDS},
     CircuitImpl, CIRCUIT,
 };
-use risc0_circuit_recursion_bits129::{
-    control_id::ALLOWED_CONTROL_ROOT as BITS129_ALLOWED_CONTROL_ROOT,
-    CircuitImpl as Bits129CircuitImpl, CIRCUIT as BITS129_CIRCUIT,
-};
 use risc0_core::field::baby_bear::BabyBearElem;
 use risc0_zkp::{
     adapter::{CircuitInfo, ProtocolInfo, PROOF_SYSTEM_INFO},
@@ -131,31 +127,26 @@ impl<Claim> SuccinctReceipt<Claim> {
                 received: params.proof_system_info,
             });
         }
-        let is_bits129 = params.circuit_info == Bits129CircuitImpl::CIRCUIT_INFO;
-        if params.circuit_info != CircuitImpl::CIRCUIT_INFO && !is_bits129 {
+        if params.circuit_info != CircuitImpl::CIRCUIT_INFO {
             return Err(VerificationError::CircuitInfoMismatch {
                 expected: CircuitImpl::CIRCUIT_INFO,
                 received: params.circuit_info,
             });
         }
 
-        let suite = ctx.suites.get(&self.hashfn);
-        if !is_bits129 && suite.is_none() {
-            return Err(VerificationError::InvalidHashSuite);
-        }
+        let suite = ctx
+            .suites
+            .get(&self.hashfn)
+            .ok_or(VerificationError::InvalidHashSuite)?;
 
         let check_code = |_, control_id: &Digest| -> Result<(), VerificationError> {
             self.control_inclusion_proof
-                .verify(
-                    control_id,
-                    &params.control_root,
-                    hash_suite_from_name("sha-256").unwrap().hashfn.as_ref(),
-                )
+                .verify(control_id, &params.control_root, suite.hashfn.as_ref())
                 .map_err(|_| {
                     tracing::debug!(
                         "failed to verify control inclusion proof for {control_id} against root {} with {}",
                         params.control_root,
-                        self.hashfn,
+                        suite.name,
                     );
                     VerificationError::ControlVerificationError {
                         control_id: *control_id,
@@ -165,14 +156,7 @@ impl<Claim> SuccinctReceipt<Claim> {
 
         // Verify the receipt itself is correct, and therefore the encoded globals are
         // reliable.
-        if is_bits129 {
-            let bits129_suite = risc0_zkp::core::hash::sha::Sha256HashSuite::<
-                risc0_zkp::baby_bear_ext6::BabyBear6,
-            >::new_suite();
-            risc0_zkp::verify::verify(&BITS129_CIRCUIT, &bits129_suite, &self.seal, check_code)?;
-        } else {
-            risc0_zkp::verify::verify(&CIRCUIT, suite.unwrap(), &self.seal, check_code)?;
-        }
+        risc0_zkp::verify::verify(&CIRCUIT, suite, &self.seal, check_code)?;
 
         // Extract the globals from the seal
         let output_elems: &[BabyBearElem] =
@@ -352,16 +336,6 @@ pub struct SuccinctReceiptVerifierParameters {
 }
 
 impl SuccinctReceiptVerifierParameters {
-    /// Native Bits129 recursion parameters (Fp6, 65 queries, wide SHA-256 commitments).
-    pub fn bits129() -> Self {
-        Self {
-            control_root: BITS129_ALLOWED_CONTROL_ROOT,
-            inner_control_root: None,
-            proof_system_info: PROOF_SYSTEM_INFO,
-            circuit_info: Bits129CircuitImpl::CIRCUIT_INFO,
-        }
-    }
-
     /// Construct verifier parameters that will accept receipts with control any of the default
     /// control ID associated with cycle counts as powers of two (po2) up to the given max
     /// inclusive.

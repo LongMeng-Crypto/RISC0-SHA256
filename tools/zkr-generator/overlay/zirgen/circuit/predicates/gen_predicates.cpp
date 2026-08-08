@@ -16,6 +16,7 @@
 #include "zirgen/circuit/recursion/code.h"
 #include "zirgen/circuit/verify/merkle.h"
 #include "zirgen/circuit/verify/wrap_recursion.h"
+#include "zirgen/circuit/verify/wrap_rv32im.h"
 #include "zirgen/circuit/verify/wrap_zirgen.h"
 #include "zirgen/compiler/codegen/codegen.h"
 

@@ -21,8 +21,6 @@
 //!
 #[cfg(feature = "prove")]
 pub(crate) mod prove;
-#[cfg(feature = "prove")]
-pub(crate) mod prove_bits129;
 #[cfg(test)]
 #[cfg(feature = "prove")]
 mod tests;
@@ -37,19 +35,6 @@ pub use risc0_circuit_recursion::control_id::{ALLOWED_CONTROL_IDS, ALLOWED_CONTR
 #[cfg(feature = "prove")]
 pub use self::prove::test_zkr;
 #[cfg(feature = "prove")]
-pub use self::prove::{identity_p254, join, lift, resolve, Prover, RECURSION_PO2};
-
-#[cfg(feature = "prove")]
-/// Apply the identity recursion program, dispatching to the receipt's security profile.
-pub fn identity(
-    inner: &crate::SuccinctReceipt<crate::ReceiptClaim>,
-) -> anyhow::Result<crate::SuccinctReceipt<crate::ReceiptClaim>> {
-    use crate::{sha::Digestible, SuccinctReceiptVerifierParameters};
-    if inner.verifier_parameters == SuccinctReceiptVerifierParameters::bits129().digest() {
-        prove_bits129::identity(inner)
-    } else {
-        prove::identity(inner)
-    }
-}
+pub use self::prove::{identity, identity_p254, join, lift, resolve, Prover, RECURSION_PO2};
 #[cfg(feature = "prove")]
 pub use risc0_circuit_recursion::prove::Program;

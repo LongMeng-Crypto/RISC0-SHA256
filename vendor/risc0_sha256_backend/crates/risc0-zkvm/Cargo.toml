@@ -91,9 +91,7 @@ prove = [
     "dep:typetag",
     "risc0-circuit-keccak/prove",
     "risc0-circuit-recursion/prove",
-    "risc0-circuit-recursion-bits129/prove",
     "risc0-circuit-rv32im/prove",
-    "risc0-circuit-rv32im-bits129/prove",
     "risc0-core/perf",
     "risc0-groth16/prove",
     "risc0-zkp/prove",
@@ -189,16 +187,8 @@ default-features = false
 version = "4.0.3"
 default-features = false
 
-[dependencies.risc0-circuit-recursion-bits129]
-path = "../risc0-circuit-recursion-bits129"
-default-features = false
-
 [dependencies.risc0-circuit-rv32im]
 version = "4.0.3"
-default-features = false
-
-[dependencies.risc0-circuit-rv32im-bits129]
-path = "../risc0-circuit-rv32im-bits129"
 default-features = false
 
 [dependencies.risc0-core]

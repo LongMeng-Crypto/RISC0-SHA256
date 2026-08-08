@@ -18,9 +18,8 @@ fi
 
 cp -a "${script_dir}/overlay/." "${zirgen_dir}/"
 cd "${zirgen_dir}"
-bazel --batch \
-  --output_base="${RISC0_ZIRGEN_BAZEL_OUTPUT_BASE:-/tmp/risc0-sha256-v3-bazel}" \
-  build --spawn_strategy=local --jobs=1 --local_ram_resources=10000 \
+bazel --output_base="${HOME}/.cache/risc0-sha256-v3-bazel" \
+  build --spawn_strategy=local \
   //zirgen/circuit/predicates:gen_predicates \
   --noshow_progress
 

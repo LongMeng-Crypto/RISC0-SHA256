@@ -21,7 +21,7 @@ use crate::{
     core::log2_ceil,
     hal::{Buffer, Hal},
     prove::{merkle::MerkleTreeProver, write_iop::WriteIOP},
-    FRI_FOLD, FRI_MIN_DEGREE, INV_RATE,
+    FRI_FOLD, FRI_MIN_DEGREE, INV_RATE, QUERIES,
 };
 
 struct ProveRoundInfo<H: Hal> {
@@ -36,12 +36,7 @@ impl<H: Hal> ProveRoundInfo<H> {
     /// produce the evaluations of the polynomial, the merkle tree
     /// committing to the evaluation, and the coefficients of the folded
     /// polynomial.
-    pub fn new(
-        hal: &H,
-        iop: &mut WriteIOP<H::Field>,
-        coeffs: &H::Buffer<H::Elem>,
-        queries: usize,
-    ) -> Self {
+    pub fn new(hal: &H, iop: &mut WriteIOP<H::Field>, coeffs: &H::Buffer<H::Elem>) -> Self {
         debug!("Doing FRI folding");
         let ext_size = H::ExtElem::EXT_SIZE;
         // Get the number of coefficients of the polynomial over the extension field.
@@ -61,7 +56,7 @@ impl<H: Hal> ProveRoundInfo<H> {
             &evaluated,
             domain / FRI_FOLD,
             FRI_FOLD * ext_size,
-            queries,
+            QUERIES,
         );
         // Send the merkle tree (as a commitment) to the virtual IOP verifier
         merkle.commit(iop);
@@ -92,7 +87,6 @@ pub fn fri_prove<H: Hal, F>(
     hal: &H,
     iop: &mut WriteIOP<H::Field>,
     coeffs: &H::Buffer<H::Elem>,
-    queries: usize,
     inner: F,
 ) where
     F: Fn(&mut WriteIOP<H::Field>, usize),
@@ -103,7 +97,7 @@ pub fn fri_prove<H: Hal, F>(
     let mut rounds = Vec::new();
     let mut coeffs = coeffs.clone();
     while coeffs.size() / ext_size > FRI_MIN_DEGREE {
-        let round = ProveRoundInfo::new(hal, iop, &coeffs, queries);
+        let round = ProveRoundInfo::new(hal, iop, &coeffs);
         coeffs = round.coeffs.clone();
         rounds.push(round);
     }
@@ -119,7 +113,7 @@ pub fn fri_prove<H: Hal, F>(
     });
     // Do queries
     debug!("Doing Queries");
-    for _ in 0..queries {
+    for _ in 0..QUERIES {
         // Get a 'random' index.
         let mut pos = iop.random_bits(log2_ceil(orig_domain)) as usize;
         // Do the 'inner' proof for this index
