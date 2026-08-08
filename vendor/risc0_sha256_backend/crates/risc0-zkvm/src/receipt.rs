@@ -951,11 +951,16 @@ impl VerifierContext {
     ///
     /// This mirrors `from_max_po2_with_hashfn` without the stability gate so downstream
     /// benchmark crates can verify receipts produced by non-default hash suites.
-    pub fn from_max_po2_with_hashfn_public(
-        hashfn: &str,
-        po2_max: usize,
-    ) -> anyhow::Result<Self> {
+    pub fn from_max_po2_with_hashfn_public(hashfn: &str, po2_max: usize) -> anyhow::Result<Self> {
         Self::from_max_po2_with_hashfn(hashfn, po2_max)
+    }
+
+    /// Construct a verifier context for native Bits129 segment and composite receipts.
+    pub fn bits129() -> Self {
+        let mut ctx = Self::default();
+        ctx.segment_verifier_parameters = Some(SegmentReceiptVerifierParameters::bits129());
+        ctx.succinct_verifier_parameters = Some(SuccinctReceiptVerifierParameters::bits129());
+        ctx
     }
 
     /// Construct a verifier context that will accept receipts with control any of the default

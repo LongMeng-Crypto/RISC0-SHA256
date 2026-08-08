@@ -131,6 +131,8 @@ struct Instructions {
   uint64_t fp4Rot1;
   uint64_t fp4Rot2;
   uint64_t fp4Rot3;
+  uint64_t fp6Rot4;
+  uint64_t fp6Rot5;
   uint64_t div2to16Const;
   uint64_t padShaEndConst;
   uint64_t padShaCountConst;
@@ -143,6 +145,8 @@ struct Instructions {
     fp4Rot1 = addConst(0, 1);
     fp4Rot2 = addMicro(Value(), MicroOpcode::MUL, fp4Rot1, fp4Rot1);
     fp4Rot3 = addMicro(Value(), MicroOpcode::MUL, fp4Rot2, fp4Rot1);
+    fp6Rot4 = addMicro(Value(), MicroOpcode::MUL, fp4Rot2, fp4Rot2);
+    fp6Rot5 = addMicro(Value(), MicroOpcode::MUL, fp6Rot4, fp4Rot1);
     // 1 / 2^16 in Baby Bear, but also shift to second component
     div2to16Const = addConst(0, 2013235201);
     uint32_t shaInitVals[] = {0x6a09e667,
@@ -204,6 +208,16 @@ struct Instructions {
   }
 
   uint64_t addHalfsConst(uint32_t tot) { return addConst(tot & 0xffff, tot >> 16); }
+
+  uint64_t addExtract(uint64_t source, size_t limb) {
+    if (limb < 4) {
+      return addMicro(Value(), MicroOpcode::EXTRACT_LOW4, source, limb & 1, limb >> 1);
+    }
+    if (limb < kBabyBearExtSize) {
+      return addMicro(Value(), MicroOpcode::EXTRACT_HIGH2, source, limb - 4, 0);
+    }
+    throw std::runtime_error("extension limb index out of range");
+  }
 
   uint64_t
   addMicro(Value out, MicroOpcode opcode, uint64_t op0 = 0, uint64_t op1 = 0, uint64_t op2 = 0) {
@@ -664,11 +678,18 @@ struct Instructions {
           if (ref.size() == 1) {
             toId[op.getOut()] = addConst(ref[0]);
           } else {
-            assert(ref.size() == kBabyBearExtSize);
+            assert(ref.size() == 4 || ref.size() == kBabyBearExtSize);
             size_t low2 = addConst(ref[0], ref[1]);
             size_t high2 = addConst(ref[2], ref[3]);
             size_t mul = addMicro(Value(), MicroOpcode::MUL, high2, fp4Rot2);
-            addMicro(op.getOut(), MicroOpcode::ADD, mul, low2);
+            size_t low4 = addMicro(Value(), MicroOpcode::ADD, mul, low2);
+            if (ref.size() == kBabyBearExtSize) {
+              size_t high4 = addConst(ref[4], ref[5]);
+              size_t mul4 = addMicro(Value(), MicroOpcode::MUL, high4, fp6Rot4);
+              addMicro(op.getOut(), MicroOpcode::ADD, mul4, low4);
+            } else {
+              addMicro(op.getOut(), MicroOpcode::ADD, low4, 0);
+            }
           }
         })
         .Case<AddOp>([&](AddOp op) {
@@ -708,7 +729,7 @@ struct Instructions {
             } else {
               assert(k == kBabyBearExtSize);
               for (size_t j = 0; j < kBabyBearExtSize; j++) {
-                poly.push_back(addMicro(Value(), MicroOpcode::EXTRACT, fullId, j / 2, j % 2));
+                poly.push_back(addExtract(fullId, j));
               }
             }
             for (size_t j = 0; j < k; j++) {
@@ -754,7 +775,8 @@ struct Instructions {
           }
         })
         .Case<FromDigestOp>([&](FromDigestOp op) {
-          if (cast<DigestType>(op.getIn().getType()).getKind() != DigestKind::Sha256) {
+          auto kind = cast<DigestType>(op.getIn().getType()).getKind();
+          if (kind != DigestKind::Sha256 && kind != DigestKind::Default) {
             throw std::runtime_error("Unimplemented digest type in FromDigestOp encoding");
           }
           if (op.getOut().size() != 16) {
@@ -763,8 +785,8 @@ struct Instructions {
           uint64_t shaStart = toId[op.getIn()];
           for (size_t i = 0; i < 8; i++) {
             size_t id = shaStart + i;
-            toId[op.getOut()[i * 2 + 0]] = addMicro(Value(), MicroOpcode::EXTRACT, id, 0, 0);
-            toId[op.getOut()[i * 2 + 1]] = addMicro(Value(), MicroOpcode::EXTRACT, id, 0, 1);
+            toId[op.getOut()[i * 2 + 0]] = addExtract(id, 0);
+            toId[op.getOut()[i * 2 + 1]] = addExtract(id, 1);
           }
         })
         .Case<HashFoldOp>([&](HashFoldOp op) {

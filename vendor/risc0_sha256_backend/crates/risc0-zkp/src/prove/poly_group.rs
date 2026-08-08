@@ -18,7 +18,7 @@ use crate::{
     core::log2_ceil,
     hal::{Buffer, Hal},
     prove::merkle::MerkleTreeProver,
-    INV_RATE, QUERIES,
+    INV_RATE,
 };
 
 /// A PolyGroup represents a group of polynomials, all of the same maximum
@@ -67,13 +67,24 @@ impl<H: Hal> PolyGroup<H> {
         size: usize,
         name: &'static str,
     ) -> Self {
+        Self::new_with_queries(hal, coeffs, count, size, name, crate::QUERIES)
+    }
+
+    pub fn new_with_queries(
+        hal: &H,
+        coeffs: H::Buffer<H::Elem>,
+        count: usize,
+        size: usize,
+        name: &'static str,
+        queries: usize,
+    ) -> Self {
         scope_with!("poly_group({})", name);
         assert_eq!(coeffs.size(), count * size);
         let domain = size * INV_RATE;
         let evaluated = hal.alloc_elem("evaluated", count * domain);
         hal.batch_expand_into_evaluate_ntt(&evaluated, &coeffs, count, log2_ceil(INV_RATE));
         hal.batch_bit_reverse(&coeffs, count);
-        let merkle = MerkleTreeProver::new(hal, &evaluated, domain, count, QUERIES);
+        let merkle = MerkleTreeProver::new(hal, &evaluated, domain, count, queries);
         PolyGroup {
             coeffs,
             count,

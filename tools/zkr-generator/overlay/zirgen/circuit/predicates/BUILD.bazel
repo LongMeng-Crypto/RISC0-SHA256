@@ -13,11 +13,10 @@ cc_library(
     hdrs = [
         "predicates.h",
         "//zirgen/circuit/recursion",
-        "//zirgen/circuit/rv32im/v1/edsl:rv32im",
     ],
     deps = [
         "//zirgen/circuit/recursion:lib",
-        "//zirgen/circuit/verify:lib",
+        "//zirgen/circuit/verify:lib_bits129",
         "//zirgen/compiler/edsl",
     ],
 )

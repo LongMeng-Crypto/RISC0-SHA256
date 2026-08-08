@@ -3,6 +3,12 @@ members = [
     "examples/backend-smoke/host",
     "examples/backend-smoke/methods",
     "vendor/risc0_sha256_backend/crates/risc0-circuit-recursion",
+    "vendor/risc0_sha256_backend/crates/risc0-circuit-recursion-bits129",
+    "vendor/risc0_sha256_backend/crates/risc0-circuit-recursion-bits129-sys",
+    "vendor/risc0_sha256_backend/crates/risc0-circuit-rv32im-bits129",
+    "vendor/risc0_sha256_backend/crates/risc0-circuit-rv32im-bits129-sys",
+    "vendor/risc0_sha256_backend/crates/risc0-zkp",
+    "vendor/risc0_sha256_backend/crates/risc0-zkvm",
 ]
 resolver = "2"
 
@@ -18,6 +24,8 @@ risc0-zkvm = { path = "vendor/risc0_sha256_backend/crates/risc0-zkvm" }
 risc0-zkp = { path = "vendor/risc0_sha256_backend/crates/risc0-zkp" }
 risc0-circuit-rv32im = { path = "vendor/risc0_sha256_backend/crates/risc0-circuit-rv32im" }
 risc0-circuit-recursion = { path = "vendor/risc0_sha256_backend/crates/risc0-circuit-recursion" }
+risc0-circuit-recursion-bits129 = { path = "vendor/risc0_sha256_backend/crates/risc0-circuit-recursion-bits129" }
+risc0-circuit-recursion-bits129-sys = { path = "vendor/risc0_sha256_backend/crates/risc0-circuit-recursion-bits129-sys" }
 
 [profile.dev]
 opt-level = 3

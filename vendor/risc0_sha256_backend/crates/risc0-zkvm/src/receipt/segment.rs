@@ -92,7 +92,13 @@ impl SegmentReceipt {
             });
         }
 
-        let expected = risc0_circuit_rv32im::CircuitImpl::CIRCUIT_INFO;
+        let is_bits129 =
+            self.seal.first() == Some(&risc0_circuit_rv32im_bits129::RV32IM_SEAL_VERSION);
+        let expected = if is_bits129 {
+            risc0_circuit_rv32im_bits129::CircuitImpl::CIRCUIT_INFO
+        } else {
+            risc0_circuit_rv32im::CircuitImpl::CIRCUIT_INFO
+        };
 
         if params.circuit_info != expected {
             return Err(VerificationError::CircuitInfoMismatch {
@@ -101,15 +107,20 @@ impl SegmentReceipt {
             });
         }
 
-        let suite = ctx
-            .suites
-            .get(&self.hashfn)
-            .ok_or(VerificationError::InvalidHashSuite)?;
-
         tracing::debug!("SegmentReceipt::verify_integrity_with_context");
-        risc0_circuit_rv32im::verify_with_hash_suite(&self.seal, suite)?;
-        let decoded_claim = ReceiptClaim::decode_from_seal_v2(&self.seal, None)
-            .or(Err(VerificationError::ReceiptFormatError))?;
+        let decoded_claim = if is_bits129 {
+            risc0_circuit_rv32im_bits129::verify(&self.seal)?;
+            ReceiptClaim::decode_from_bits129_seal(&self.seal, None)
+                .or(Err(VerificationError::ReceiptFormatError))?
+        } else {
+            let suite = ctx
+                .suites
+                .get(&self.hashfn)
+                .ok_or(VerificationError::InvalidHashSuite)?;
+            risc0_circuit_rv32im::verify_with_hash_suite(&self.seal, suite)?;
+            ReceiptClaim::decode_from_seal_v2(&self.seal, None)
+                .or(Err(VerificationError::ReceiptFormatError))?
+        };
 
         // Receipt is consistent with the claim encoded on the seal. Now check against the
         // claim on the struct.
@@ -139,7 +150,11 @@ impl SegmentReceipt {
 
     /// Extracts the PoVW nonce from this segment receipt's seal.
     pub fn povw_nonce(&self) -> anyhow::Result<PovwNonce> {
-        risc0_circuit_rv32im::decode_povw_nonce(&self.seal)
+        if self.seal.first() == Some(&risc0_circuit_rv32im_bits129::RV32IM_SEAL_VERSION) {
+            risc0_circuit_rv32im_bits129::decode_povw_nonce(&self.seal)
+        } else {
+            risc0_circuit_rv32im::decode_povw_nonce(&self.seal)
+        }
     }
 }
 
@@ -178,6 +193,17 @@ impl Default for SegmentReceiptVerifierParameters {
             control_ids: BTreeSet::default(),
             proof_system_info: PROOF_SYSTEM_INFO,
             circuit_info: risc0_circuit_rv32im::CircuitImpl::CIRCUIT_INFO,
+        }
+    }
+}
+
+impl SegmentReceiptVerifierParameters {
+    /// Parameters for native Bits129 segment receipts.
+    pub fn bits129() -> Self {
+        Self {
+            control_ids: BTreeSet::default(),
+            proof_system_info: PROOF_SYSTEM_INFO,
+            circuit_info: risc0_circuit_rv32im_bits129::CircuitImpl::CIRCUIT_INFO,
         }
     }
 }

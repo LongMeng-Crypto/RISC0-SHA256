@@ -25,7 +25,7 @@ use crate::{
         ntt::{bit_reverse, interpolate_ntt},
     },
     verify::{merkle::MerkleTreeVerifier, read_iop::ReadIOP, VerificationError},
-    FRI_FOLD, FRI_FOLD_PO2, FRI_MIN_DEGREE, INV_RATE, QUERIES,
+    FRI_FOLD, FRI_FOLD_PO2, FRI_MIN_DEGREE, INV_RATE,
 };
 
 /// VerifyRoundInfo contains the data against which the queries for a particular
@@ -42,18 +42,21 @@ impl<'a, F: Field> VerifyRoundInfo<'a, F> {
         iop: &mut ReadIOP<'a, F>,
         hashfn: &dyn HashFn<F>,
         in_domain: usize,
+        queries: usize,
     ) -> Result<Self, VerificationError> {
         let domain = in_domain / FRI_FOLD;
+        let merkle = MerkleTreeVerifier::new(
+            iop,
+            hashfn,
+            domain,
+            FRI_FOLD * F::ExtElem::EXT_SIZE,
+            queries,
+        )?;
+        let mix = iop.random_ext_elem();
         Ok(VerifyRoundInfo {
             domain,
-            merkle: MerkleTreeVerifier::new(
-                iop,
-                hashfn,
-                domain,
-                FRI_FOLD * F::ExtElem::EXT_SIZE,
-                QUERIES,
-            )?,
-            mix: iop.random_ext_elem(),
+            merkle,
+            mix,
         })
     }
 }
@@ -114,6 +117,7 @@ where
                 self.iop().deref_mut(),
                 hashfn,
                 domain,
+                self.queries,
             )?);
             domain /= FRI_FOLD;
             degree /= FRI_FOLD;
@@ -137,7 +141,7 @@ where
         let gen = <F::Elem as RootsOfUnity>::ROU_FWD[log2_ceil(domain)];
         // Do queries
         let mut poly_buf: Vec<F::ExtElem> = Vec::with_capacity(degree);
-        for _ in 0..QUERIES {
+        for _ in 0..self.queries {
             let mut pos = self.iop().random_bits(log2_ceil(orig_domain)) as usize;
             // Do the 'inner' verification for this index
             let mut goal = inner(pos)?;

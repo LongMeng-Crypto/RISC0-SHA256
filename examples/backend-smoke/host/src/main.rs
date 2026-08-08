@@ -6,7 +6,7 @@ use methods::{
 };
 use risc0_zkvm::{
     default_prover, recursion::identity as recursion_identity, ExecutorEnv, InnerReceipt,
-    ProverOpts, Receipt, ReceiptKind, VerifierContext, DEFAULT_MAX_PO2,
+    ProverOpts, Receipt, ReceiptKind, SecurityProfile, VerifierContext, DEFAULT_MAX_PO2,
 };
 
 fn env_flag(name: &str) -> bool {
@@ -24,6 +24,14 @@ fn main() {
         value => panic!("unsupported RISC0_RECEIPT_KIND={value}"),
     };
     let identity = env_flag("RISC0_IDENTITY_WRAP");
+    let security_profile = match env::var("RISC0_SECURITY_PROFILE")
+        .unwrap_or_else(|_| "legacy97".into())
+        .as_str()
+    {
+        "legacy97" => SecurityProfile::Legacy97,
+        "bits129" => SecurityProfile::Bits129,
+        value => panic!("unsupported RISC0_SECURITY_PROFILE={value}"),
+    };
     assert!(
         !identity || receipt_kind == ReceiptKind::Succinct,
         "identity wrapping requires a succinct receipt"
@@ -47,10 +55,11 @@ fn main() {
         _ => unreachable!(),
     }
     .with_hashfn(hashfn.clone())
+    .with_security_profile(security_profile)
     .with_receipt_kind(receipt_kind);
 
     println!(
-        "backend-smoke: hashfn={hashfn} receipt={receipt_kind:?} identity={identity} segment_po2={segment_po2}"
+        "backend-smoke: profile={security_profile:?} hashfn={hashfn} receipt={receipt_kind:?} identity={identity} segment_po2={segment_po2}"
     );
     let started = Instant::now();
     let prove_info = default_prover()
@@ -72,8 +81,14 @@ fn main() {
 
     // ProverOpts::succinct() commits to the backend's complete default control
     // set, not merely to this execution's segment limit.
-    let verifier = VerifierContext::from_max_po2_with_hashfn_public(&hashfn, DEFAULT_MAX_PO2)
-        .expect("unsupported backend hash function");
+    let verifier = match security_profile {
+        SecurityProfile::Legacy97 => {
+            VerifierContext::from_max_po2_with_hashfn_public(&hashfn, DEFAULT_MAX_PO2)
+                .expect("unsupported backend hash function")
+        }
+        SecurityProfile::Bits129 => VerifierContext::bits129(),
+        _ => unreachable!("security profile was validated above"),
+    };
     let verify_started = Instant::now();
     receipt
         .verify_with_context(&verifier, GUEST_ID)

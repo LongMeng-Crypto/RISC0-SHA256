@@ -178,7 +178,7 @@ impl ProverServer for DevModeProver {
         }
 
         Ok(PreflightResults {
-            inner: Default::default(),
+            inner: crate::host::server::session::SegmentPreflight::Legacy97(Default::default()),
             terminate_state: segment.inner.claim.terminate_state,
             output: segment.output.clone(),
             segment_index: segment.index,

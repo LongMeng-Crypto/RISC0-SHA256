@@ -63,6 +63,11 @@ impl BabyBearExt6 {
         Self(coeffs)
     }
 
+    /// Embed a canonical integer in the constant coefficient.
+    pub fn from_u32(value: u32) -> Self {
+        Self::from(BabyBearElem::from_u64(value as u64))
+    }
+
     /// Return the polynomial coefficients, from constant through degree five.
     pub fn elems(&self) -> &[BabyBearElem; EXT6_SIZE] {
         &self.0
@@ -130,10 +135,7 @@ impl field::Elem for BabyBearExt6 {
     }
 
     fn to_u32_words(&self) -> Vec<u32> {
-        self.0
-            .iter()
-            .map(BabyBearElem::as_u32_montgomery)
-            .collect()
+        self.0.iter().map(BabyBearElem::as_u32_montgomery).collect()
     }
 
     fn from_u32_words(val: &[u32]) -> Self {
@@ -330,6 +332,60 @@ mod tests {
     use super::{BabyBear6, BabyBearExt6, EXT6_SIZE};
 
     #[test]
+    fn check_polynomial_split_layout_uses_inv_rate_residues() {
+        use crate::core::ntt::interpolate_ntt;
+        use risc0_core::field::{baby_bear::BabyBearElem, RootsOfUnity};
+
+        const DOMAIN: usize = 32;
+        const INV_RATE: usize = 4;
+        let coefficients = (0..DOMAIN)
+            .map(|i| BabyBearElem::from_u64((17 * i + 5) as u64))
+            .collect::<Vec<_>>();
+        let root = BabyBearElem::ROU_FWD[5];
+        let mut values = (0..DOMAIN)
+            .map(|row| {
+                let x = root.pow(row);
+                coefficients
+                    .iter()
+                    .rev()
+                    .fold(BabyBearElem::ZERO, |total, coefficient| {
+                        total * x + *coefficient
+                    })
+            })
+            .collect::<Vec<_>>();
+        interpolate_ntt::<BabyBearElem, BabyBearElem>(&mut values);
+
+        let z = BabyBearExt6::from_subelems([
+            BabyBearElem::from_u64(1),
+            BabyBearElem::from_u64(2),
+            BabyBearElem::from_u64(3),
+            BabyBearElem::from_u64(4),
+            BabyBearElem::from_u64(5),
+            BabyBearElem::from_u64(6),
+        ]);
+        let direct = coefficients
+            .iter()
+            .rev()
+            .fold(BabyBearExt6::ZERO, |total, coefficient| {
+                total * z + *coefficient
+            });
+        let remap = [0usize, 2, 1, 3];
+        let z4 = z.pow(INV_RATE);
+        let mut reconstructed = BabyBearExt6::ZERO;
+        for (residue, chunk) in remap.into_iter().enumerate() {
+            let start = chunk * (DOMAIN / INV_RATE);
+            let evaluated = values[start..start + DOMAIN / INV_RATE]
+                .iter()
+                .rev()
+                .fold(BabyBearExt6::ZERO, |total, coefficient| {
+                    total * z4 + *coefficient
+                });
+            reconstructed += evaluated * z.pow(residue);
+        }
+        assert_eq!(reconstructed, direct);
+    }
+
+    #[test]
     fn field_marker_uses_degree_six() {
         fn assert_field<F: risc0_core::field::Field>() {}
         assert_field::<BabyBear6>();
@@ -356,10 +412,10 @@ mod tests {
     fn serialization_round_trip() {
         let mut rng = SmallRng::seed_from_u64(6);
         let value = BabyBearExt6::random(&mut rng);
+        assert_eq!(BabyBearExt6::from_u32_words(&value.to_u32_words()), value);
         assert_eq!(
-            BabyBearExt6::from_u32_words(&value.to_u32_words()),
+            BabyBearExt6::from_subelems(value.subelems().iter().copied()),
             value
         );
-        assert_eq!(BabyBearExt6::from_subelems(value.subelems().iter().copied()), value);
     }
 }

@@ -20,10 +20,12 @@ use super::{keccak::prove_keccak, ProverServer};
 use crate::{
     claim::merge::Merge,
     host::{
-        client::prove::opts::ReceiptKind,
+        client::prove::opts::{ReceiptKind, SecurityProfile},
         prove_info::ProveInfo,
-        recursion::{identity_p254, join, lift, resolve},
-        server::{exec::executor::ExecutorImpl, prove::union_peak::UnionPeak},
+        recursion::{identity_p254, join, lift, prove_bits129, resolve},
+        server::{
+            exec::executor::ExecutorImpl, prove::union_peak::UnionPeak, session::SegmentPreflight,
+        },
     },
     mmr::MerkleMountainAccumulator,
     receipt::{InnerReceipt, SegmentReceipt, SuccinctReceipt},
@@ -58,7 +60,11 @@ impl ProverImpl {
 
 impl ProverServer for ProverImpl {
     fn prove(&self, env: ExecutorEnv<'_>, elf: &[u8]) -> Result<ProveInfo> {
-        let ctx = VerifierContext::default().with_dev_mode(self.opts.dev_mode());
+        let ctx = match self.opts.security_profile {
+            SecurityProfile::Legacy97 => VerifierContext::default(),
+            SecurityProfile::Bits129 => VerifierContext::bits129(),
+        }
+        .with_dev_mode(self.opts.dev_mode());
         self.prove_with_ctx(env, &ctx, elf)
     }
 
@@ -73,6 +79,22 @@ impl ProverServer for ProverImpl {
     }
 
     fn prove_session(&self, ctx: &VerifierContext, session: &Session) -> Result<ProveInfo> {
+        ensure!(
+            self.opts.security_profile != SecurityProfile::Bits129
+                || self.opts.receipt_kind != ReceiptKind::Groth16,
+            "Bits129 Groth16 receipts are not available"
+        );
+        // `prove_session` is the common path for local, IPC, and `prove_with_opts` callers.
+        // Some callers provide the default Legacy97 context before the selected profile reaches
+        // this server, so choose the native Bits129 verifier parameters here as well.
+        let bits129_ctx;
+        let ctx = match self.opts.security_profile {
+            SecurityProfile::Legacy97 => ctx,
+            SecurityProfile::Bits129 => {
+                bits129_ctx = VerifierContext::bits129().with_dev_mode(self.opts.dev_mode());
+                &bits129_ctx
+            }
+        };
         tracing::debug!(
             "prove_session: exit_code = {:?}, journal = {:?}, segments: {}",
             session.exit_code,
@@ -235,9 +257,27 @@ impl ProverServer for ProverImpl {
             segment.po2(),
             self.opts.max_segment_po2
         );
-        let inner =
-            risc0_circuit_rv32im::prove::segment_prover_with_hash_suite(self.opts.hash_suite()?)?
-                .preflight(&segment.inner)?;
+        let inner = match self.opts.security_profile {
+            SecurityProfile::Legacy97 => SegmentPreflight::Legacy97(
+                risc0_circuit_rv32im::prove::segment_prover_with_hash_suite(
+                    self.opts.hash_suite()?,
+                )?
+                .preflight(&segment.inner)?,
+            ),
+            SecurityProfile::Bits129 => {
+                ensure!(
+                    self.opts.hashfn == "sha-256",
+                    "Bits129 currently requires SHA-256"
+                );
+                let encoded = segment.inner.encode()?;
+                let bits_segment =
+                    risc0_circuit_rv32im_bits129::execute::Segment::decode(&encoded)?;
+                SegmentPreflight::Bits129(
+                    risc0_circuit_rv32im_bits129::prove::segment_prover()?
+                        .preflight(&bits_segment)?,
+                )
+            }
+        };
 
         Ok(PreflightResults {
             inner,
@@ -254,11 +294,24 @@ impl ProverServer for ProverImpl {
     ) -> Result<SegmentReceipt> {
         tracing::debug!("prove_segment_core");
 
-        let po2 = preflight_results.inner.po2();
-        let seal =
-            risc0_circuit_rv32im::prove::segment_prover_with_hash_suite(self.opts.hash_suite()?)?
-                .prove_core(preflight_results.inner)?;
-        let mut claim = ReceiptClaim::decode_from_seal_v2(&seal, Some(po2))?;
+        let (seal, mut claim) = match preflight_results.inner {
+            SegmentPreflight::Legacy97(inner) => {
+                let po2 = inner.po2();
+                let seal = risc0_circuit_rv32im::prove::segment_prover_with_hash_suite(
+                    self.opts.hash_suite()?,
+                )?
+                .prove_core(inner)?;
+                let claim = ReceiptClaim::decode_from_seal_v2(&seal, Some(po2))?;
+                (seal, claim)
+            }
+            SegmentPreflight::Bits129(inner) => {
+                let po2 = inner.po2();
+                let seal =
+                    risc0_circuit_rv32im_bits129::prove::segment_prover()?.prove_core(inner)?;
+                let claim = ReceiptClaim::decode_from_bits129_seal(&seal, Some(po2))?;
+                (seal, claim)
+            }
+        };
         claim.output = preflight_results.output.into();
 
         let verifier_parameters = ctx
@@ -281,8 +334,14 @@ impl ProverServer for ProverImpl {
     }
 
     fn lift(&self, receipt: &SegmentReceipt) -> Result<SuccinctReceipt<ReceiptClaim>> {
-        let receipt = lift(receipt)?;
-        let ctx = self.verifier_context_for_hashfn(&receipt.hashfn)?;
+        let receipt = match self.opts.security_profile {
+            SecurityProfile::Legacy97 => lift(receipt)?,
+            SecurityProfile::Bits129 => prove_bits129::lift(receipt)?,
+        };
+        let ctx = match self.opts.security_profile {
+            SecurityProfile::Legacy97 => self.verifier_context_for_hashfn(&receipt.hashfn)?,
+            SecurityProfile::Bits129 => VerifierContext::bits129(),
+        };
         receipt
             .verify_integrity_with_context(&ctx)
             .context("verify lift")?;
@@ -301,8 +360,14 @@ impl ProverServer for ProverImpl {
         a: &SuccinctReceipt<ReceiptClaim>,
         b: &SuccinctReceipt<ReceiptClaim>,
     ) -> Result<SuccinctReceipt<ReceiptClaim>> {
-        let receipt = join(a, b)?;
-        let ctx = self.verifier_context_for_hashfn(&receipt.hashfn)?;
+        let receipt = match self.opts.security_profile {
+            SecurityProfile::Legacy97 => join(a, b)?,
+            SecurityProfile::Bits129 => prove_bits129::join(a, b)?,
+        };
+        let ctx = match self.opts.security_profile {
+            SecurityProfile::Legacy97 => self.verifier_context_for_hashfn(&receipt.hashfn)?,
+            SecurityProfile::Bits129 => VerifierContext::bits129(),
+        };
         receipt
             .verify_integrity_with_context(&ctx)
             .context("verify join")?;

@@ -33,6 +33,7 @@ pub struct Prover<'a, H: Hal> {
     groups: Vec<Option<PolyGroup<H>>>,
     cycles: usize,
     po2: usize,
+    queries: usize,
 }
 
 fn make_coeffs<H: Hal>(hal: &H, witness: &H::Buffer<H::Elem>, count: usize) -> H::Buffer<H::Elem> {
@@ -50,6 +51,12 @@ fn make_coeffs<H: Hal>(hal: &H, witness: &H::Buffer<H::Elem>, count: usize) -> H
 impl<'a, H: Hal> Prover<'a, H> {
     /// Creates a new prover.
     pub fn new(hal: &'a H, taps: &'a TapSet) -> Self {
+        Self::new_with_queries(hal, taps, crate::QUERIES)
+    }
+
+    /// Creates a prover with an explicit FRI query count.
+    pub fn new_with_queries(hal: &'a H, taps: &'a TapSet, queries: usize) -> Self {
+        assert!(queries > 0);
         Self {
             hal,
             taps,
@@ -59,6 +66,7 @@ impl<'a, H: Hal> Prover<'a, H> {
                 .collect(),
             cycles: 0,
             po2: usize::MAX,
+            queries,
         }
     }
 
@@ -90,12 +98,13 @@ impl<'a, H: Hal> Prover<'a, H> {
         );
 
         let coeffs = make_coeffs(self.hal, witness, group_size);
-        let group_ref = self.groups[tap_group_index].insert(PolyGroup::new(
+        let group_ref = self.groups[tap_group_index].insert(PolyGroup::new_with_queries(
             self.hal,
             coeffs,
             group_size,
             self.cycles,
             witness.name(),
+            self.queries,
         ));
 
         group_ref.merkle.commit(&mut self.iop);
@@ -175,7 +184,14 @@ impl<'a, H: Hal> Prover<'a, H> {
         // invRate*size to 16 polys of size, without actually doing anything.
 
         // Make the PolyGroup + add it to the IOP;
-        let check_group = PolyGroup::new(self.hal, check_poly, H::CHECK_SIZE, self.cycles, "check");
+        let check_group = PolyGroup::new_with_queries(
+            self.hal,
+            check_poly,
+            H::CHECK_SIZE,
+            self.cycles,
+            "check",
+            self.queries,
+        );
         check_group.merkle.commit(&mut self.iop);
         tracing::debug!("checkGroup: {}", check_group.merkle.root());
 
@@ -244,7 +260,10 @@ impl<'a, H: Hal> Prover<'a, H> {
         });
 
         // Add in the coeffs of the check polynomials.
-        let z_pow = z.pow(ext_size);
+        // The check polynomial is split into INV_RATE residue classes. The
+        // evaluation point for each split polynomial is therefore z^INV_RATE;
+        // this is independent of the extension-field degree.
+        let z_pow = z.pow(INV_RATE);
         scope!("misc", {
             let which = Vec::from_iter(0u32..H::CHECK_SIZE as u32);
             let xs = vec![z_pow; H::CHECK_SIZE];
@@ -346,7 +365,7 @@ impl<'a, H: Hal> Prover<'a, H> {
                     chunks.push((i, pows));
                 }
 
-                // Divide check polys by z^EXT_SIZE
+                // Divide check polys by z^INV_RATE.
                 chunks.push((combo_count, vec![z_pow]));
 
                 self.hal.combos_divide(&combos, chunks, self.cycles);
@@ -370,13 +389,19 @@ impl<'a, H: Hal> Prover<'a, H> {
         );
         tracing::debug!("FRI-proof, size = {}", final_poly_coeffs.size() / ext_size);
 
-        fri_prove(self.hal, &mut self.iop, &final_poly_coeffs, |iop, idx| {
-            for pg in self.groups.iter() {
-                let pg = pg.as_ref().unwrap();
-                pg.merkle.prove(self.hal, iop, idx);
-            }
-            check_group.merkle.prove(self.hal, iop, idx);
-        });
+        fri_prove(
+            self.hal,
+            &mut self.iop,
+            &final_poly_coeffs,
+            self.queries,
+            |iop, idx| {
+                for pg in self.groups.iter() {
+                    let pg = pg.as_ref().unwrap();
+                    pg.merkle.prove(self.hal, iop, idx);
+                }
+                check_group.merkle.prove(self.hal, iop, idx);
+            },
+        );
 
         let proven_soundness_error =
             super::soundness::proven::<H>(self.taps, final_poly_coeffs.size());

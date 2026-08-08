@@ -96,6 +96,9 @@ pub enum SecurityProfile {
     /// BabyBear extension field, and the existing 256-bit commitment digest.
     #[default]
     Legacy97,
+    /// Native Bits129: BabyBear degree-6 extension, 65 FRI queries, and
+    /// two-lane SHA-256 commitments.
+    Bits129,
 }
 
 impl Default for ProverOpts {

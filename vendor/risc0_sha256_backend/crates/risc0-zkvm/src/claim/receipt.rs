@@ -185,6 +185,38 @@ impl ReceiptClaim {
         })
     }
 
+    pub(crate) fn decode_from_bits129_seal(
+        seal: &[u32],
+        _po2: Option<u32>,
+    ) -> anyhow::Result<ReceiptClaim> {
+        let claim = risc0_circuit_rv32im_bits129::Rv32imV2Claim::decode(seal)?;
+        let terminate_state =
+            claim
+                .terminate_state
+                .map(|state| risc0_circuit_rv32im::TerminateState {
+                    a0: risc0_circuit_rv32im::HighLowU16(state.a0.0, state.a0.1),
+                    a1: risc0_circuit_rv32im::HighLowU16(state.a1.0, state.a1.1),
+                });
+        let exit_code = exit_code_from_terminate_state(&terminate_state)?;
+        let post_state = match exit_code {
+            ExitCode::Halted(_) => Digest::ZERO,
+            _ => claim.post_state,
+        };
+        Ok(ReceiptClaim {
+            pre: MaybePruned::Value(SystemState {
+                pc: 0,
+                merkle_root: claim.pre_state,
+            }),
+            post: MaybePruned::Value(SystemState {
+                pc: 0,
+                merkle_root: post_state,
+            }),
+            exit_code,
+            input: MaybePruned::Pruned(claim.input),
+            output: MaybePruned::Pruned(claim.output.unwrap_or_default()),
+        })
+    }
+
     /// Produce the claim for joining two claims of execution in a continuation, asserting the
     /// reachability of the post state of other from the pre state of self.
     pub fn join(&self, other: &Self) -> Self {
