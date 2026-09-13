@@ -192,8 +192,8 @@ pub fn union(
     a: &SuccinctReceipt<Unknown>,
     b: &SuccinctReceipt<Unknown>,
 ) -> Result<SuccinctReceipt<UnionClaim>> {
-    // NOTE: This will run into issues if the assumption is made with a control root of zero. Right
-    // now, this is only used for keccak so this issue has not been hit.
+    // Union commits to explicit control roots for its children. Verifiers must bind
+    // the returned UnionClaim to the expected child statements and control roots.
     let a_assumption = a.to_assumption(false)?.digest();
     let b_assumption = b.to_assumption(false)?.digest();
 
@@ -725,10 +725,11 @@ impl Prover {
         ensure_recursion_hashfn(&b.hashfn)?;
 
         ensure!(
-            a.hashfn == b.hashfn,
-            "receipt hash functions differ: {} != {}",
+            a.hashfn == b.hashfn && a.hashfn == opts.hashfn,
+            "union requires the same hash suite for both receipts and prover options: {}, {}, {}",
             a.hashfn,
-            b.hashfn
+            b.hashfn,
+            opts.hashfn
         );
 
         let hash_suite = hash_suite_from_name(&a.hashfn)
@@ -846,6 +847,11 @@ impl Prover {
         ensure_recursion_hashfn(&cond.hashfn)?;
         ensure_recursion_hashfn(&assum.hashfn)?;
 
+        ensure!(
+            cond.hashfn == assum.hashfn && cond.hashfn == opts.hashfn,
+            "resolve requires the same hash suite for both receipts and prover options"
+        );
+
         // Load the resolve predicate as a Program and construct the prover.
         let (program, control_id) = zkr::resolve(&opts.hashfn)?;
         let mut prover = Prover::new(program, control_id, opts);
@@ -853,7 +859,9 @@ impl Prover {
         // Load the input values needed by the predicate.
         // Resolve predicate needs both seals as input, and the journal and assumptions tail digest
         // to compute the opening of the conditional receipt claim to the first assumption.
-        prover.add_input_digest(&cond.control_root()?, digest_kind_for_hashfn(&cond.hashfn)?);
+        // rootIop.readDigests consumes eight raw SHA words; the tail and journal below
+        // use readBaseVals(16) and must retain the half-word encoding.
+        prover.add_iop_digest(&cond.control_root()?, digest_kind_for_hashfn(&cond.hashfn)?)?;
         prover.add_succinct_rv32im_receipt(cond)?;
 
         let (head, tail, output) = check_resolve_assumption(&cond.claim, &assum.claim)?;

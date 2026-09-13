@@ -564,7 +564,7 @@ impl Preflight {
                 let b = self.wom_read(args[1]);
                 tracing::trace!("eq({a:?} ({:?}), {b:?}) ({:?})", args[0], args[1]);
                 if a != b {
-                    bail!("Equality check failed: Expecting {a:?} == {b:?}");
+                    bail!("Equality check failed at cycle {cycle}, WOM {write_addr:?}, operands {args_u32:?}: Expecting {a:?} == {b:?}");
                 }
                 true
             }

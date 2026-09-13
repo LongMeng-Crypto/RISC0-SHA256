@@ -41,12 +41,14 @@ ZKRS = [
     "join_povw",
     "join_unwrap_povw",
     "resolve",
+    "resolve_sha256",
     "resolve_povw",
     "resolve_unwrap_povw",
     "identity",
     "identity_sha256",
     "unwrap_povw",
     "union",
+    "union_sha256",
 ]
 
 build_circuit(

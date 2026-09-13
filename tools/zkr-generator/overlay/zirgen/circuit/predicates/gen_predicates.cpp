@@ -100,6 +100,38 @@ verifyAssumption(DigestVal condRoot, ReadIopVal seal, const CircuitInterface& ci
   return assum;
 }
 
+// SHA-native verification of an assumption receipt in the 2^21 recursion domain.
+static Assumption
+verifyAssumptionSha256(DigestVal condRoot, ReadIopVal seal, const CircuitInterface& circuit) {
+  // Does the same work as verify and validate, without having a root to check against.
+  auto info = zirgen::verify::verify(seal, kSha256RecursionPo2, circuit);
+  Val codeRootIndex = seal.readBaseVals(1)[0];
+  auto merklePath = seal.readDigests(recursion::kAllowedCodeMerkleDepth);
+  auto calculatedRoot = calculateMerkleProofRoot(info.codeRoot, codeRootIndex, merklePath);
+
+  // Decode the two globals and ensure the first is equal to the calculated root.
+  DigestVal innerRoot = intoDigest(llvm::ArrayRef<Val>(info.out).slice(0, 16), DigestKind::Default);
+  DigestVal innerOut = intoDigest(llvm::ArrayRef<Val>(info.out).slice(16, 16), DigestKind::Sha256);
+  assert_eq(innerRoot, calculatedRoot);
+
+  // Read an additional boolean Val to indicate whether the assumption control
+  // root is zero. If it is zero, this means "default" and the root that was
+  // calculatedRoot needs to match the control root on the conditional receipt.
+  // Otherwise, we return the control root as is and the resolve check will
+  // ensure consistency with the conditional claim.
+  Val zeroAssumeRoot = seal.readBaseVals(1)[0];
+  eqz(zeroAssumeRoot * (1 - zeroAssumeRoot));
+  std::vector zeroVec(16, Val(0));
+  auto zeroHash = intoDigest(zeroVec, DigestKind::Default);
+  assert_eq(select(zeroAssumeRoot, {condRoot, calculatedRoot}), condRoot);
+  DigestVal assumRoot = select(zeroAssumeRoot, {calculatedRoot, zeroHash});
+
+  Assumption assum;
+  assum.claim = innerOut;
+  assum.controlRoot = assumRoot;
+  return assum;
+}
+
 template <typename T> static void writeOutObj(Buffer out, T outData) {
   std::vector<Val> outStream;
   outData.write(outStream);
@@ -199,6 +231,34 @@ void addResolve(Module& module, const std::string& name, Func func) {
 }
 
 template <typename Claim, typename Func>
+void addResolveSha256(Module& module, const std::string& name, Func func) {
+  module.addFunc<6>(name,
+                    {gbuf(recursion::kOutSize), ioparg(), ioparg(), ioparg(), ioparg(), ioparg()},
+                    [&](Buffer out,
+                        ReadIopVal rootIop,
+                        ReadIopVal condIop,
+                        ReadIopVal assumIop,
+                        ReadIopVal tailIop,
+                        ReadIopVal journalIop) {
+                      auto circuit = getInterfaceRecursion();
+                      DigestVal root = rootIop.readDigests(1)[0];
+                      Claim cond = getRecursiveObjSha256<Claim>(root, condIop, *circuit);
+                      Assumption assum = verifyAssumptionSha256(root, assumIop, *circuit);
+
+                      // NOTE: readBaseVals is used here instead of readDigest
+                      // because we need to read in the SHA-256 digest as
+                      // halves and then call intoDigest. Poseidon2 digests can
+                      // be read in directly since they are encoded as words.
+                      DigestVal tail = intoDigest(tailIop.readBaseVals(16), DigestKind::Sha256);
+                      DigestVal journal =
+                          intoDigest(journalIop.readBaseVals(16), DigestKind::Sha256);
+                      auto outData = func(cond, assum, tail, journal);
+                      writeOutObj(out, outData);
+                      out.setDigest(0, root, "root");
+                    });
+}
+
+template <typename Claim, typename Func>
 void addUnary(Module& module, const std::string& name, Func func) {
   module.addFunc<3>(name,
                     {gbuf(recursion::kOutSize), ioparg(), ioparg()},
@@ -234,6 +294,21 @@ template <typename Func> void addUnion(Module& module, const std::string& name, 
                       DigestVal root = rootIop.readDigests(1)[0];
                       Assumption left = verifyAssumption(root, leftIop, *circuit);
                       Assumption right = verifyAssumption(root, rightIop, *circuit);
+
+                      auto outData = func(left, right);
+                      writeOutObj(out, outData);
+                      out.setDigest(0, root, "root");
+                    });
+}
+
+template <typename Func> void addUnionSha256(Module& module, const std::string& name, Func func) {
+  module.addFunc<4>(name,
+                    {gbuf(recursion::kOutSize), ioparg(), ioparg(), ioparg()},
+                    [&](Buffer out, ReadIopVal rootIop, ReadIopVal leftIop, ReadIopVal rightIop) {
+                      auto circuit = getInterfaceRecursion();
+                      DigestVal root = rootIop.readDigests(1)[0];
+                      Assumption left = verifyAssumptionSha256(root, leftIop, *circuit);
+                      Assumption right = verifyAssumptionSha256(root, rightIop, *circuit);
 
                       auto outData = func(left, right);
                       writeOutObj(out, outData);
@@ -291,6 +366,10 @@ int main(int argc, char* argv[]) {
       module, "resolve", [&](ReceiptClaim a, Assumption b, DigestVal tail, DigestVal journal) {
         return resolve(a, b, tail, journal);
       });
+  addResolveSha256<ReceiptClaim>(
+      module, "resolve_sha256", [&](ReceiptClaim a, Assumption b, DigestVal tail, DigestVal journal) {
+        return resolve(a, b, tail, journal);
+      });
   addResolve<WorkClaim<ReceiptClaim>>(
       module,
       "resolve_povw",
@@ -314,6 +393,9 @@ int main(int argc, char* argv[]) {
 
   addUnion(
       module, "union", [&](Assumption left, Assumption right) { return unionFunc(left, right); });
+
+  addUnionSha256(
+      module, "union_sha256", [&](Assumption left, Assumption right) { return unionFunc(left, right); });
 
   mlir::PassManager pm(module.getModule()->getContext());
   if (failed(applyPassManagerCLOptions(pm))) {

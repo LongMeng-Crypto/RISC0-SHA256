@@ -22,17 +22,15 @@ fn download_zkr() {
     use std::{
         env, fs,
         path::{Path, PathBuf},
-        str::FromStr,
     };
 
-    use downloader::{verify, Download, DownloadSummary, Downloader};
     use sha2::{Digest, Sha256};
 
     const FILENAME: &str = "recursion_zkr.zip";
-    const SRC_PATH: &str = "src/recursion_zkr.zip";
+    const SRC_PATH: &str = "src/recursion_zkr_sha256.zip";
     // NOTE: This can be calculated with:
-    // shasum -a256 risc0/circuit/recursion/src/recursion_zkr.zip
-    const SHA256_HASH: &str = "91ae9850d13b5866e60c918bc21f4f7f3397ed72b80e35fa10139dc0303cf875";
+    // sha256sum src/recursion_zkr_sha256.zip
+    const SHA256_HASH: &str = "07489ef3ebc8e1665ff2c9e242e41581409e4e1f26cda3abf367ef7d2fcc892d";
 
     fn check_sha2(path: &Path) -> bool {
         let data = fs::read(path).unwrap();
@@ -42,7 +40,8 @@ fn download_zkr() {
     println!("cargo:rerun-if-env-changed=RECURSION_SRC_PATH");
 
     let src_path = env::var("RECURSION_SRC_PATH").unwrap_or(SRC_PATH.to_string());
-    let src_path = PathBuf::from_str(src_path.as_str()).unwrap();
+    let src_path = PathBuf::from(src_path);
+    println!("cargo:rerun-if-changed={}", src_path.display());
     let out_dir = env::var("OUT_DIR").unwrap();
     let out_dir = Path::new(&out_dir);
     let out_path = out_dir.join(FILENAME);
@@ -64,20 +63,11 @@ fn download_zkr() {
         return;
     }
 
-    let mut downloader = Downloader::builder()
-        .download_folder(out_dir)
-        .build()
-        .unwrap();
-    let url = format!("https://risc0-artifacts.s3.us-west-2.amazonaws.com/zkr/{SHA256_HASH}.zip");
-    eprintln!("Downloading {url}");
-    let dl = Download::new(&url)
-        .file_name(&PathBuf::from_str(FILENAME).unwrap())
-        .verify(verify::with_digest::<Sha256>(
-            hex::decode(SHA256_HASH).unwrap(),
-        ));
-    let results = downloader.download(&[dl]).unwrap();
-    for result in results {
-        let summary: DownloadSummary = result.unwrap();
-        eprintln!("{summary}");
-    }
+    panic!(
+        "SHA-256 recursion archive missing or checksum mismatch at {}. \
+         Run `git lfs pull` in the matching RISC0-SHA256 checkout and, for Cargo Git \
+         dependencies, set RECURSION_SRC_PATH to its src/recursion_zkr_sha256.zip. \
+         Expected SHA-256: {SHA256_HASH}. This custom archive is not hosted upstream.",
+        src_path.display()
+    );
 }

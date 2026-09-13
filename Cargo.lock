@@ -3727,8 +3727,10 @@ dependencies = [
 name = "risc0-sha256-backend-smoke"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "risc0-sha256-backend-smoke-methods",
  "risc0-zkvm",
+ "serde",
 ]
 
 [[package]]
@@ -3736,6 +3738,22 @@ name = "risc0-sha256-backend-smoke-methods"
 version = "0.1.0"
 dependencies = [
  "risc0-build",
+]
+
+[[package]]
+name = "risc0-sha256-resolve-methods"
+version = "0.1.0"
+dependencies = [
+ "risc0-build",
+]
+
+[[package]]
+name = "risc0-sha256-resolve-smoke"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "risc0-sha256-resolve-methods",
+ "risc0-zkvm",
 ]
 
 [[package]]

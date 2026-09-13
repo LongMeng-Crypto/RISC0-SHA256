@@ -1,0 +1,13 @@
+[package]
+name = "risc0-sha256-resolve-smoke"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[features]
+cuda = ["risc0-zkvm/cuda"]
+
+[dependencies]
+methods = { package = "risc0-sha256-resolve-methods", path = "../methods" }
+risc0-zkvm = { version = "^3.0.4", features = ["prove"] }
+anyhow = "1"

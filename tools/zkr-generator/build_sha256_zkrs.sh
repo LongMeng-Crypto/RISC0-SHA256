@@ -18,8 +18,8 @@ fi
 
 cp -a "${script_dir}/overlay/." "${zirgen_dir}/"
 cd "${zirgen_dir}"
-bazel --output_base="${HOME}/.cache/risc0-sha256-v3-bazel" \
-  build --spawn_strategy=local \
+bazel --output_base="${RISC0_BAZEL_CACHE:-${HOME}/.cache/risc0-sha256-shared/bazel}" \
+  build --jobs="${RISC0_BUILD_JOBS:-4}" --spawn_strategy=local \
   //zirgen/circuit/predicates:gen_predicates \
   --noshow_progress
 
@@ -30,5 +30,7 @@ for po2 in $(seq 14 24); do
 done
 test -s "${out}/join_sha256.zkr"
 test -s "${out}/identity_sha256.zkr"
+test -s "${out}/resolve_sha256.zkr"
+test -s "${out}/union_sha256.zkr"
 
 echo "SHA-256 ZKRs generated under ${out}"

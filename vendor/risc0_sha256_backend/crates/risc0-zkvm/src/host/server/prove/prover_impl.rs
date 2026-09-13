@@ -58,7 +58,11 @@ impl ProverImpl {
 
 impl ProverServer for ProverImpl {
     fn prove(&self, env: ExecutorEnv<'_>, elf: &[u8]) -> Result<ProveInfo> {
-        let ctx = VerifierContext::default().with_dev_mode(self.opts.dev_mode());
+        let ctx = if self.opts.hashfn == "sha-256" {
+            self.verifier_context_for_hashfn(&self.opts.hashfn)?
+        } else {
+            VerifierContext::default().with_dev_mode(self.opts.dev_mode())
+        };
         self.prove_with_ctx(env, &ctx, elf)
     }
 

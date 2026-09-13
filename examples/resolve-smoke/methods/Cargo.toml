@@ -1,0 +1,12 @@
+[package]
+name = "risc0-sha256-resolve-methods"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+publish = false
+
+[build-dependencies]
+risc0-build = "^3.0.4"
+
+[package.metadata.risc0]
+methods = ["guest"]

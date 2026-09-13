@@ -33,7 +33,7 @@ fn get_zkr(name: &str, hashfn: &str) -> Result<(Program, Digest)> {
 
     let program_name = hash_specific_name(name.to_string(), hashfn);
     let recursion_po2 = match (hashfn, name) {
-        ("sha-256", "join.zkr" | "identity.zkr") => SHA256_RECURSION_PO2,
+        ("sha-256", "join.zkr" | "identity.zkr" | "resolve.zkr" | "union.zkr") => SHA256_RECURSION_PO2,
         ("sha-256", name) if name.starts_with("lift_rv32im_v2_") => SHA256_RECURSION_PO2,
         _ => RECURSION_PO2,
     };
@@ -68,6 +68,8 @@ fn hash_specific_name(name: String, hashfn: &str) -> String {
     match name.as_str() {
         "join.zkr" => "join_sha256.zkr".to_string(),
         "identity.zkr" => "identity_sha256.zkr".to_string(),
+        "resolve.zkr" => "resolve_sha256.zkr".to_string(),
+        "union.zkr" => "union_sha256.zkr".to_string(),
         _ => name,
     }
 }

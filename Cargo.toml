@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "examples/backend-smoke/host",
+    "examples/resolve-smoke/host",
+    "examples/resolve-smoke/methods",
     "examples/backend-smoke/methods",
     "vendor/risc0_sha256_backend/crates/risc0-circuit-recursion",
 ]

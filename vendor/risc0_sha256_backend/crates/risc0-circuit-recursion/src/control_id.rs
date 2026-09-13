@@ -298,7 +298,7 @@ pub const SHA256_CONTROL_IDS: [(&str, Digest); 32] = [
     ),
     (
         "resolve.zkr",
-        digest!("ecc34946284eb02d1e119ef0878ae65ba5e855d6e0b5db4e462a694007b2a0f4"),
+        digest!("1d1570459bb1a7a3819500da3f4a20b61af18ee0756a551e152342c34ae68eb4"),
     ),
     (
         "resolve_povw.zkr",
@@ -314,7 +314,7 @@ pub const SHA256_CONTROL_IDS: [(&str, Digest); 32] = [
     ),
     (
         "union.zkr",
-        digest!("44bfa51c5030508d7eddc1b1489145a6e519842f7283098a17f13fe9113497dc"),
+        digest!("c15a7b73bc68638b84cbd847fb6bfcfc1ee25c8353cd527c0e3ae44e597b396a"),
     ),
     (
         "unwrap_povw.zkr",

@@ -83,14 +83,22 @@ pub trait Prover {
     /// Use this method when you want to specify the receipt type you would like (e.g. groth16 or
     /// succinct), or if you need to tweak other parameter in [ProverOpts].
     ///
-    /// Default [VerifierContext] will be used.
+    /// Uses the matching SHA-256 control root for SHA-256 proofs, otherwise the
+    /// default [VerifierContext]. Explicit custom contexts use `prove_with_ctx`.
     fn prove_with_opts(
         &self,
         env: ExecutorEnv<'_>,
         elf: &[u8],
         opts: &ProverOpts,
     ) -> Result<ProveInfo> {
-        let ctx = VerifierContext::default().with_dev_mode(opts.dev_mode());
+        // A SHA-256 assumption receipt must be checked against the SHA-256 control root.
+        // Keep the existing default context for all other proof suites.
+        let ctx = if opts.hashfn == "sha-256" {
+            VerifierContext::from_max_po2_with_hashfn(&opts.hashfn, opts.max_segment_po2)?
+        } else {
+            VerifierContext::default()
+        }
+        .with_dev_mode(opts.dev_mode());
         self.prove_with_ctx(env, &ctx, elf, opts)
     }
 

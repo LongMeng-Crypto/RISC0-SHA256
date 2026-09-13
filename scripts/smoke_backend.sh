@@ -4,9 +4,11 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
-export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${HOME}/.cache/sedaa-risc0-shared-target}"
-export RISC0_PROVER="${RISC0_PROVER:-local}"
+source "${ROOT_DIR}/scripts/shared_cache_env.sh"
 export RISC0_SEGMENT_LIMIT_PO2="${RISC0_SEGMENT_LIMIT_PO2:-20}"
+
+cargo build -p risc0-sha256-backend-smoke --bin risc0-sha256-backend-smoke --release --features cuda
+binary="${CARGO_TARGET_DIR}/release/risc0-sha256-backend-smoke"
 
 run_smoke() {
   local hashfn="$1"
@@ -17,7 +19,7 @@ run_smoke() {
   RISC0_BACKEND_HASH="${hashfn}" \
   RISC0_RECEIPT_KIND="${receipt}" \
   RISC0_IDENTITY_WRAP="${identity}" \
-    cargo run -p risc0-sha256-backend-smoke --release --features cuda
+    "${binary}"
 }
 
 run_smoke poseidon2 composite 0
