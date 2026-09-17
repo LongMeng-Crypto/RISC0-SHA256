@@ -49,6 +49,13 @@ ZKRS = [
     "unwrap_povw",
     "union",
     "union_sha256",
+] + [
+    "identity_sha256_adaptive_" + str(po2) for po2 in range(19, 22)
+] + [
+    op + "_sha256_adaptive_" + str(left) + "_" + str(right)
+    for op in ["join", "resolve", "union"]
+    for left in range(19, 22)
+    for right in range(19, 22)
 ]
 
 build_circuit(

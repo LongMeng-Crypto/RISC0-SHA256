@@ -3,3 +3,5 @@
 *.receipt
 *.proof
 
+benchmarks/results/
+__pycache__/

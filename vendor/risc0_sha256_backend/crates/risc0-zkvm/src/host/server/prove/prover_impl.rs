@@ -49,6 +49,11 @@ impl ProverImpl {
     }
 
     fn verifier_context_for_hashfn(&self, hashfn: &str) -> Result<VerifierContext> {
+        if self.opts.uses_sha256_adaptive_recursion() {
+            ensure!(hashfn == "sha-256", "adaptive recursion requires SHA-256");
+            return Ok(VerifierContext::sha256_adaptive(self.opts.max_segment_po2)?
+                .with_dev_mode(self.opts.dev_mode()));
+        }
         Ok(
             VerifierContext::from_max_po2_with_hashfn(hashfn, self.opts.max_segment_po2)?
                 .with_dev_mode(self.opts.dev_mode()),
@@ -72,6 +77,11 @@ impl ProverServer for ProverImpl {
         ctx: &VerifierContext,
         elf: &[u8],
     ) -> Result<ProveInfo> {
+        ensure!(
+            !self.opts.uses_sha256_adaptive_recursion()
+                || self.opts.receipt_kind != ReceiptKind::Groth16,
+            "adaptive SHA-256 recursion does not support Groth16"
+        );
         let session = ExecutorImpl::from_elf(env, elf)?.run()?;
         self.prove_session(ctx, &session)
     }
@@ -187,6 +197,10 @@ impl ProverServer for ProverImpl {
             });
         }
 
+        ensure!(
+            !self.opts.uses_sha256_adaptive_recursion() || session.povw_job_id.is_none(),
+            "adaptive SHA-256 recursion does not support PoVW"
+        );
         let (succinct_receipt, work_receipt) = match session.povw_job_id.is_some() {
             true => {
                 let work_receipt = self.composite_to_succinct_povw(&composite_receipt)?;
@@ -285,7 +299,11 @@ impl ProverServer for ProverImpl {
     }
 
     fn lift(&self, receipt: &SegmentReceipt) -> Result<SuccinctReceipt<ReceiptClaim>> {
-        let receipt = lift(receipt)?;
+        let receipt = if self.opts.uses_sha256_adaptive_recursion() {
+            crate::recursion::lift_with_opts(receipt, self.opts.clone())?
+        } else {
+            lift(receipt)?
+        };
         let ctx = self.verifier_context_for_hashfn(&receipt.hashfn)?;
         receipt
             .verify_integrity_with_context(&ctx)
@@ -305,7 +323,11 @@ impl ProverServer for ProverImpl {
         a: &SuccinctReceipt<ReceiptClaim>,
         b: &SuccinctReceipt<ReceiptClaim>,
     ) -> Result<SuccinctReceipt<ReceiptClaim>> {
-        let receipt = join(a, b)?;
+        let receipt = if self.opts.uses_sha256_adaptive_recursion() {
+            crate::recursion::join_with_opts(a, b, self.opts.clone())?
+        } else {
+            join(a, b)?
+        };
         let ctx = self.verifier_context_for_hashfn(&receipt.hashfn)?;
         receipt
             .verify_integrity_with_context(&ctx)
@@ -334,7 +356,11 @@ impl ProverServer for ProverImpl {
         conditional: &SuccinctReceipt<ReceiptClaim>,
         assumption: &SuccinctReceipt<Unknown>,
     ) -> Result<SuccinctReceipt<ReceiptClaim>> {
-        let receipt = resolve(conditional, assumption)?;
+        let receipt = if self.opts.uses_sha256_adaptive_recursion() {
+            crate::recursion::resolve_with_opts(conditional, assumption, self.opts.clone())?
+        } else {
+            resolve(conditional, assumption)?
+        };
         let ctx = self.verifier_context_for_hashfn(&receipt.hashfn)?;
         receipt
             .verify_integrity_with_context(&ctx)
@@ -379,8 +405,14 @@ impl ProverServer for ProverImpl {
         a: &SuccinctReceipt<Unknown>,
         b: &SuccinctReceipt<Unknown>,
     ) -> Result<SuccinctReceipt<UnionClaim>> {
-        let receipt = union(a, b)?;
-        receipt.verify_integrity().context("verify union")?;
+        let receipt = if self.opts.uses_sha256_adaptive_recursion() {
+            crate::recursion::union_with_opts(a, b, self.opts.clone())?
+        } else {
+            union(a, b)?
+        };
+        receipt
+            .verify_integrity_with_context(&self.verifier_context_for_hashfn(&receipt.hashfn)?)
+            .context("verify union")?;
         Ok(receipt)
     }
 

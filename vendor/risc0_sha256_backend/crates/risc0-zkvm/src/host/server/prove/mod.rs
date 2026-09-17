@@ -415,6 +415,10 @@ impl Session {
 
 /// Select a [ProverServer] based on the specified [ProverOpts].
 pub fn get_prover_server(opts: &ProverOpts) -> Result<Rc<dyn ProverServer>> {
+    anyhow::ensure!(
+        !opts.uses_sha256_adaptive_recursion() || opts.receipt_kind != ReceiptKind::Groth16,
+        "adaptive SHA-256 recursion does not support Groth16"
+    );
     if opts.dev_mode() {
         eprintln!("WARNING: proving in dev mode. This will not generate valid, secure proofs.");
         return Ok(Rc::new(DevModeProver::new()));

@@ -71,11 +71,19 @@ pub(crate) static ZKR_REGISTRY: Mutex<ZkrRegistry> = Mutex::new(BTreeMap::new())
 /// constant-time verification procedure, with respect to the original segment length, and is then
 /// used as the input to all other recursion programs (e.g. join, resolve, and identity_p254).
 pub fn lift(segment_receipt: &SegmentReceipt) -> Result<SuccinctReceipt<ReceiptClaim>> {
-    tracing::debug!("Proving lift: claim = {:#?}", segment_receipt.claim);
-    let mut prover = Prover::new_lift(
+    lift_with_opts(
         segment_receipt,
         recursion_opts_for_hashfn(&segment_receipt.hashfn)?,
-    )?;
+    )
+}
+
+/// Run lift with an explicit, pinned recursion program set; legacy defaults remain unchanged.
+pub fn lift_with_opts(
+    segment_receipt: &SegmentReceipt,
+    opts: ProverOpts,
+) -> Result<SuccinctReceipt<ReceiptClaim>> {
+    tracing::debug!("Proving lift: claim = {:#?}", segment_receipt.claim);
+    let mut prover = Prover::new_lift(segment_receipt, opts)?;
 
     let receipt = prover.prover.run()?;
     let claim_decoded = ReceiptClaim::decode(&mut receipt.out_stream())?;
@@ -123,10 +131,19 @@ pub fn join(
     a: &SuccinctReceipt<ReceiptClaim>,
     b: &SuccinctReceipt<ReceiptClaim>,
 ) -> Result<SuccinctReceipt<ReceiptClaim>> {
+    join_with_opts(a, b, recursion_opts_for_hashfn(&a.hashfn)?)
+}
+
+/// Run join with an explicit, pinned recursion program set; legacy defaults remain unchanged.
+pub fn join_with_opts(
+    a: &SuccinctReceipt<ReceiptClaim>,
+    b: &SuccinctReceipt<ReceiptClaim>,
+    opts: ProverOpts,
+) -> Result<SuccinctReceipt<ReceiptClaim>> {
     tracing::debug!("Proving join: a.claim = {:#?}", a.claim);
     tracing::debug!("Proving join: b.claim = {:#?}", b.claim);
 
-    let mut prover = Prover::new_join(a, b, recursion_opts_for_hashfn(&a.hashfn)?)?;
+    let mut prover = Prover::new_join(a, b, opts)?;
     let receipt = prover.prover.run()?;
 
     let claim_decoded = ReceiptClaim::decode(&mut receipt.out_stream())?;
@@ -192,6 +209,15 @@ pub fn union(
     a: &SuccinctReceipt<Unknown>,
     b: &SuccinctReceipt<Unknown>,
 ) -> Result<SuccinctReceipt<UnionClaim>> {
+    union_with_opts(a, b, recursion_opts_for_hashfn(&a.hashfn)?)
+}
+
+/// Run union with an explicit, pinned recursion program set; legacy defaults remain unchanged.
+pub fn union_with_opts(
+    a: &SuccinctReceipt<Unknown>,
+    b: &SuccinctReceipt<Unknown>,
+    opts: ProverOpts,
+) -> Result<SuccinctReceipt<UnionClaim>> {
     // Union commits to explicit control roots for its children. Verifiers must bind
     // the returned UnionClaim to the expected child statements and control roots.
     let a_assumption = a.to_assumption(false)?.digest();
@@ -207,11 +233,7 @@ pub fn union(
     tracing::debug!("Proving union: left assumption = {:#?}", left_assumption);
     tracing::debug!("Proving union: right assumption = {:#?}", right_assumption);
 
-    let mut prover = Prover::new_union(
-        left_receipt,
-        right_receipt,
-        recursion_opts_for_hashfn(&left_receipt.hashfn)?,
-    )?;
+    let mut prover = Prover::new_union(left_receipt, right_receipt, opts)?;
     let receipt = prover.prover.run()?;
 
     let claim = UnionClaim {
@@ -227,13 +249,23 @@ pub fn union(
 ///
 /// By applying the resolve program, a conditional receipt (i.e. a receipt for an execution using
 /// the `env::verify` API to logically verify a receipt) can be made into an unconditional receipt.
-pub fn resolve<Claim>(
+pub fn resolve<Claim: risc0_binfmt::Digestible + Debug>(
     conditional: &SuccinctReceipt<ReceiptClaim>,
     assumption: &SuccinctReceipt<Claim>,
-) -> Result<SuccinctReceipt<ReceiptClaim>>
-where
-    Claim: risc0_binfmt::Digestible + Debug,
-{
+) -> Result<SuccinctReceipt<ReceiptClaim>> {
+    resolve_with_opts(
+        conditional,
+        assumption,
+        recursion_opts_for_hashfn(&conditional.hashfn)?,
+    )
+}
+
+/// Run resolve with an explicit, pinned recursion program set; legacy defaults remain unchanged.
+pub fn resolve_with_opts<Claim: risc0_binfmt::Digestible + Debug>(
+    conditional: &SuccinctReceipt<ReceiptClaim>,
+    assumption: &SuccinctReceipt<Claim>,
+    opts: ProverOpts,
+) -> Result<SuccinctReceipt<ReceiptClaim>> {
     tracing::debug!(
         "Proving resolve: conditional.claim = {:#?}",
         conditional.claim,
@@ -243,11 +275,7 @@ where
         assumption.claim,
     );
 
-    let mut prover = Prover::new_resolve(
-        conditional,
-        assumption,
-        recursion_opts_for_hashfn(&conditional.hashfn)?,
-    )?;
+    let mut prover = Prover::new_resolve(conditional, assumption, opts)?;
     let receipt = prover.prover.run()?;
     let claim_decoded = ReceiptClaim::decode(&mut receipt.out_stream())?;
     tracing::debug!("Proving resolve finished: decoded claim = {claim_decoded:#?}");
@@ -417,9 +445,16 @@ pub fn identity_p254(
 /// underlying receipt claim. It is useful for experiments that want to hide whether
 /// the previous recursion pipeline ended in `lift` or `join`.
 pub fn identity(inner: &SuccinctReceipt<ReceiptClaim>) -> Result<SuccinctReceipt<ReceiptClaim>> {
+    identity_with_opts(inner, recursion_opts_for_hashfn(&inner.hashfn)?)
+}
+
+/// Run identity with an explicit, pinned recursion program set; legacy defaults remain unchanged.
+pub fn identity_with_opts(
+    inner: &SuccinctReceipt<ReceiptClaim>,
+    opts: ProverOpts,
+) -> Result<SuccinctReceipt<ReceiptClaim>> {
     tracing::debug!("identity");
 
-    let opts = recursion_opts_for_hashfn(&inner.hashfn)?;
     let mut prover = Prover::new_identity(inner, opts)?;
     let receipt = prover.prover.run()?;
     let claim =
@@ -698,6 +733,9 @@ impl Prover {
 
         // Instantiate the prover with the lift recursion program and its control ID.
         let (program, control_id) = match povw {
+            false if opts.uses_sha256_adaptive_recursion() => {
+                zkr::adaptive(&format!("lift_rv32im_v2_sha256_{po2}.zkr"))?
+            }
             false => zkr::lift(po2, &opts.hashfn)?,
             true => zkr::lift_povw(po2, &opts.hashfn)?,
         };
@@ -737,7 +775,15 @@ impl Prover {
         let allowed_ids = MerkleGroup::new(opts.control_ids.clone())?;
         let merkle_root = allowed_ids.calc_root(hash_suite.hashfn.as_ref());
 
-        let (program, control_id) = zkr::union(&opts.hashfn)?;
+        let (program, control_id) = if opts.uses_sha256_adaptive_recursion() {
+            zkr::adaptive(&format!(
+                "union_sha256_adaptive_{}_{}.zkr",
+                zkr::sha256_po2(a)?,
+                zkr::sha256_po2(b)?
+            ))?
+        } else {
+            zkr::union(&opts.hashfn)?
+        };
         let mut prover = Prover::new(program, control_id, opts);
 
         prover.add_iop_digest(&merkle_root, digest_kind_for_hashfn(&a.hashfn)?)?;
@@ -766,7 +812,15 @@ impl Prover {
             b.hashfn
         );
 
-        let (program, control_id) = zkr::join(&opts.hashfn)?;
+        let (program, control_id) = if opts.uses_sha256_adaptive_recursion() {
+            zkr::adaptive(&format!(
+                "join_sha256_adaptive_{}_{}.zkr",
+                zkr::sha256_po2(a)?,
+                zkr::sha256_po2(b)?
+            ))?
+        } else {
+            zkr::join(&opts.hashfn)?
+        };
         let mut prover = Prover::new(program, control_id, opts);
 
         // Determine the control root from the receipts themselves, and ensure they are equal. If
@@ -853,7 +907,15 @@ impl Prover {
         );
 
         // Load the resolve predicate as a Program and construct the prover.
-        let (program, control_id) = zkr::resolve(&opts.hashfn)?;
+        let (program, control_id) = if opts.uses_sha256_adaptive_recursion() {
+            zkr::adaptive(&format!(
+                "resolve_sha256_adaptive_{}_{}.zkr",
+                zkr::sha256_po2(cond)?,
+                zkr::sha256_po2(assum)?
+            ))?
+        } else {
+            zkr::resolve(&opts.hashfn)?
+        };
         let mut prover = Prover::new(program, control_id, opts);
 
         // Load the input values needed by the predicate.
@@ -942,7 +1004,14 @@ impl Prover {
     pub fn new_identity(a: &SuccinctReceipt<ReceiptClaim>, opts: ProverOpts) -> Result<Self> {
         ensure_recursion_hashfn(&a.hashfn)?;
 
-        let (program, control_id) = zkr::identity(&opts.hashfn)?;
+        let (program, control_id) = if opts.uses_sha256_adaptive_recursion() {
+            zkr::adaptive(&format!(
+                "identity_sha256_adaptive_{}.zkr",
+                zkr::sha256_po2(a)?
+            ))?
+        } else {
+            zkr::identity(&opts.hashfn)?
+        };
         let mut prover = Prover::new(program, control_id, opts);
 
         prover.add_iop_digest(&a.control_root()?, digest_kind_for_hashfn(&a.hashfn)?)?;

@@ -1,0 +1,207 @@
+[
+  {
+    "program": "identity_sha256_adaptive_19.zkr",
+    "rows": 528823,
+    "po2": 20
+  },
+  {
+    "program": "identity_sha256_adaptive_20.zkr",
+    "rows": 567014,
+    "po2": 20
+  },
+  {
+    "program": "identity_sha256_adaptive_21.zkr",
+    "rows": 610847,
+    "po2": 20
+  },
+  {
+    "program": "join_sha256_adaptive_19_19.zkr",
+    "rows": 1057510,
+    "po2": 21
+  },
+  {
+    "program": "join_sha256_adaptive_19_20.zkr",
+    "rows": 1095706,
+    "po2": 21
+  },
+  {
+    "program": "join_sha256_adaptive_19_21.zkr",
+    "rows": 1139540,
+    "po2": 21
+  },
+  {
+    "program": "join_sha256_adaptive_20_19.zkr",
+    "rows": 1095706,
+    "po2": 21
+  },
+  {
+    "program": "join_sha256_adaptive_20_20.zkr",
+    "rows": 1133891,
+    "po2": 21
+  },
+  {
+    "program": "join_sha256_adaptive_20_21.zkr",
+    "rows": 1177730,
+    "po2": 21
+  },
+  {
+    "program": "join_sha256_adaptive_21_19.zkr",
+    "rows": 1139540,
+    "po2": 21
+  },
+  {
+    "program": "join_sha256_adaptive_21_20.zkr",
+    "rows": 1177730,
+    "po2": 21
+  },
+  {
+    "program": "join_sha256_adaptive_21_21.zkr",
+    "rows": 1221556,
+    "po2": 21
+  },
+  {
+    "program": "lift_rv32im_v2_sha256_14.zkr",
+    "rows": 413378,
+    "po2": 19
+  },
+  {
+    "program": "lift_rv32im_v2_sha256_15.zkr",
+    "rows": 442873,
+    "po2": 19
+  },
+  {
+    "program": "lift_rv32im_v2_sha256_16.zkr",
+    "rows": 476764,
+    "po2": 19
+  },
+  {
+    "program": "lift_rv32im_v2_sha256_17.zkr",
+    "rows": 516299,
+    "po2": 19
+  },
+  {
+    "program": "lift_rv32im_v2_sha256_18.zkr",
+    "rows": 547897,
+    "po2": 20
+  },
+  {
+    "program": "lift_rv32im_v2_sha256_19.zkr",
+    "rows": 581692,
+    "po2": 20
+  },
+  {
+    "program": "lift_rv32im_v2_sha256_20.zkr",
+    "rows": 619884,
+    "po2": 20
+  },
+  {
+    "program": "lift_rv32im_v2_sha256_21.zkr",
+    "rows": 663717,
+    "po2": 20
+  },
+  {
+    "program": "lift_rv32im_v2_sha256_22.zkr",
+    "rows": 699615,
+    "po2": 20
+  },
+  {
+    "program": "lift_rv32im_v2_sha256_23.zkr",
+    "rows": 737712,
+    "po2": 20
+  },
+  {
+    "program": "lift_rv32im_v2_sha256_24.zkr",
+    "rows": 780202,
+    "po2": 20
+  },
+  {
+    "program": "resolve_sha256_adaptive_19_19.zkr",
+    "rows": 1057552,
+    "po2": 21
+  },
+  {
+    "program": "resolve_sha256_adaptive_19_20.zkr",
+    "rows": 1095748,
+    "po2": 21
+  },
+  {
+    "program": "resolve_sha256_adaptive_19_21.zkr",
+    "rows": 1139582,
+    "po2": 21
+  },
+  {
+    "program": "resolve_sha256_adaptive_20_19.zkr",
+    "rows": 1095748,
+    "po2": 21
+  },
+  {
+    "program": "resolve_sha256_adaptive_20_20.zkr",
+    "rows": 1133933,
+    "po2": 21
+  },
+  {
+    "program": "resolve_sha256_adaptive_20_21.zkr",
+    "rows": 1177772,
+    "po2": 21
+  },
+  {
+    "program": "resolve_sha256_adaptive_21_19.zkr",
+    "rows": 1139582,
+    "po2": 21
+  },
+  {
+    "program": "resolve_sha256_adaptive_21_20.zkr",
+    "rows": 1177772,
+    "po2": 21
+  },
+  {
+    "program": "resolve_sha256_adaptive_21_21.zkr",
+    "rows": 1221598,
+    "po2": 21
+  },
+  {
+    "program": "union_sha256_adaptive_19_19.zkr",
+    "rows": 1056595,
+    "po2": 21
+  },
+  {
+    "program": "union_sha256_adaptive_19_20.zkr",
+    "rows": 1094791,
+    "po2": 21
+  },
+  {
+    "program": "union_sha256_adaptive_19_21.zkr",
+    "rows": 1138625,
+    "po2": 21
+  },
+  {
+    "program": "union_sha256_adaptive_20_19.zkr",
+    "rows": 1094791,
+    "po2": 21
+  },
+  {
+    "program": "union_sha256_adaptive_20_20.zkr",
+    "rows": 1132976,
+    "po2": 21
+  },
+  {
+    "program": "union_sha256_adaptive_20_21.zkr",
+    "rows": 1176815,
+    "po2": 21
+  },
+  {
+    "program": "union_sha256_adaptive_21_19.zkr",
+    "rows": 1138625,
+    "po2": 21
+  },
+  {
+    "program": "union_sha256_adaptive_21_20.zkr",
+    "rows": 1176815,
+    "po2": 21
+  },
+  {
+    "program": "union_sha256_adaptive_21_21.zkr",
+    "rows": 1220641,
+    "po2": 21
+  }
+]

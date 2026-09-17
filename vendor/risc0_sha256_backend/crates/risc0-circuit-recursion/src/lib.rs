@@ -29,6 +29,7 @@
 
 extern crate alloc;
 
+pub mod adaptive;
 pub mod control_id;
 mod info;
 pub mod layout;

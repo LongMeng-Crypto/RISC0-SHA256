@@ -197,3 +197,69 @@ archive checksum in `build.rs`. Update the corresponding `resolve.zkr` and
 `union.zkr` entries in `SHA256_CONTROL_IDS` with the computed IDs, update the
 documented checksum, and rerun both bounded CUDA tests. Both archives are Git
 LFS objects and must be included when publishing this repository.
+
+## Optional adaptive SHA-256 recursion
+
+The default path and both original archives/control-ID tables are unchanged.
+An explicit adaptive profile chooses the smallest supported power-of-two domain
+that fits each program, including the existing 1024 zero-knowledge rows:
+
+```rust,ignore
+let opts = ProverOpts::succinct().with_sha256_adaptive_recursion();
+let ctx = VerifierContext::sha256_adaptive(DEFAULT_MAX_PO2)?;
+let info = default_prover().prove_with_opts(env, elf, &opts)?;
+info.receipt.verify_with_context(&ctx, expected_image_id)?;
+```
+
+Configure a non-default maximum segment size **before** selecting the profile,
+and pass the same maximum to the verifier context. Profile selection uses the
+existing serialized `control_ids` field, so no prover-options wire format changes.
+The verifier independently pins the adaptive control root; it never trusts a
+receipt to choose its own accepted program set.
+
+For ordinary SHA-256 receipts, adaptive Lift supports RV32IM sizes `po2=14..24`:
+inputs 14–17 produce recursion domain 19, and inputs 18–24 produce domain 20.
+Join, Resolve and Union have separate verifiers for all input-domain pairs in
+`{19,20,21}²`; their outputs currently require domain 21. Identity accepts each
+of those domains and produces domain 20. Each circuit rechecks the input domain
+cryptographically; the host reads the header only to select the matching program.
+No hash suite, FRI security parameter, zero-knowledge padding allowance, claim
+check, or assumption check is weakened. PoVW and Groth16 are outside this profile.
+
+Manual composition uses `recursion::{lift,join,resolve,identity,union}_with_opts`
+with the explicit options. The existing functions without `_with_opts` retain
+legacy behavior. Use one pinned profile throughout an execution chain; legacy
+and adaptive receipts require their respective verifier contexts.
+
+Run a bounded CUDA comparison, alternating profile order across two repetitions:
+
+```bash
+./scripts/bench_adaptive.sh
+# Optional: 1..3 repetitions and a new output directory
+./scripts/bench_adaptive.sh 2 benchmarks/results/my-adaptive-run
+```
+
+The script uses the existing shared Cargo/CUDA caches and a separate bounded
+arithmetic guest. Both steps are execution-sized to exactly `2^17`; each profile
+proves the same inputs. Metrics separate base proving (including execution),
+Lift, Resolve, total prover time, final verification, and final receipt size.
+Compilation, negative checks, extra composition regressions and file writes are
+outside the reported prover timings. This is a backend benchmark, not a new
+LangGraph or policy benchmark. CUDA telemetry and per-run JSON remain in the
+chosen output directory. Every final receipt is also checked by a fresh process. Expected guest assertions
+may appear during negative checks; the script must finish successfully.
+See [the bounded CUDA results](benchmarks/adaptive_sha256.md).
+
+The separate `recursion_zkr_sha256_adaptive.zip` is a Git LFS artifact. Source
+`scripts/shared_cache_env.sh` to set its hydrated path for Cargo Git consumers.
+Regenerate against the pinned Zirgen checkout using:
+
+```bash
+./tools/zkr-generator/build_adaptive_sha256.sh
+```
+
+The generator records program row counts in
+`tools/zkr-generator/adaptive_programs.json`, rebuilds the separately checksummed
+bundle, and recomputes its control IDs. Rerun the bounded tests before publishing
+regenerated artifacts. The fixed path remains available simply by omitting
+`with_sha256_adaptive_recursion()` and using the original SHA-256 verifier context.

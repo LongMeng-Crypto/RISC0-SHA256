@@ -38,3 +38,8 @@ pub use self::prove::test_zkr;
 pub use self::prove::{identity, identity_p254, join, lift, resolve, union, Prover, RECURSION_PO2};
 #[cfg(feature = "prove")]
 pub use risc0_circuit_recursion::prove::Program;
+
+#[cfg(feature = "prove")]
+pub use self::prove::{
+    identity_with_opts, join_with_opts, lift_with_opts, resolve_with_opts, union_with_opts,
+};

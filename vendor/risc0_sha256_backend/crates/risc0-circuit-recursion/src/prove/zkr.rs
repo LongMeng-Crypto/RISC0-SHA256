@@ -24,6 +24,11 @@ use super::Program;
 
 const ZKR_ZIP: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/recursion_zkr.zip"));
 
+const ADAPTIVE_ZKR_ZIP: &[u8] = include_bytes!(concat!(
+    env!("OUT_DIR"),
+    "/recursion_zkr_sha256_adaptive.zip"
+));
+
 thread_local! {
     static PROGRAM_CACHE: RefCell<HashMap<(String, usize), Program>> =
         RefCell::new(HashMap::new());
@@ -35,9 +40,7 @@ pub fn get_zkr(name: &str, po2: usize) -> Result<Program> {
         return Ok(program);
     }
 
-    let mut zip = zip::ZipArchive::new(Cursor::new(ZKR_ZIP))?;
-    let encoded = extract_zkr(&mut zip, name)?;
-    let program = Program::from_encoded(&encoded, po2);
+    let program = load_zkr(name, po2)?;
     PROGRAM_CACHE.with(|cache| cache.borrow_mut().insert(key, program.clone()));
     Ok(program)
 }
@@ -74,4 +77,15 @@ fn extract_zkr(zip: &mut zip::ZipArchive<Cursor<&[u8]>>, name: &str) -> Result<V
     f.read_exact(bytemuck::cast_slice_mut(&mut u32s[..]))?;
 
     Ok(u32s)
+}
+
+/// Load one program without retaining it in the proof-process cache (used by artifact generation).
+pub fn load_zkr(name: &str, po2: usize) -> Result<Program> {
+    let data = if name.contains("_adaptive_") {
+        ADAPTIVE_ZKR_ZIP
+    } else {
+        ZKR_ZIP
+    };
+    let mut zip = zip::ZipArchive::new(Cursor::new(data))?;
+    Ok(Program::from_encoded(&extract_zkr(&mut zip, name)?, po2))
 }

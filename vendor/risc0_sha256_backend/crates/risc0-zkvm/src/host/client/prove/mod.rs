@@ -93,7 +93,9 @@ pub trait Prover {
     ) -> Result<ProveInfo> {
         // A SHA-256 assumption receipt must be checked against the SHA-256 control root.
         // Keep the existing default context for all other proof suites.
-        let ctx = if opts.hashfn == "sha-256" {
+        let ctx = if opts.uses_sha256_adaptive_recursion() {
+            VerifierContext::sha256_adaptive(opts.max_segment_po2)?
+        } else if opts.hashfn == "sha-256" {
             VerifierContext::from_max_po2_with_hashfn(&opts.hashfn, opts.max_segment_po2)?
         } else {
             VerifierContext::default()

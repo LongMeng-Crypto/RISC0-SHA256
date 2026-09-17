@@ -117,6 +117,30 @@ impl Default for ProverOpts {
 }
 
 impl ProverOpts {
+    /// Opt into size-adaptive SHA-256 recursion; call after configuring the maximum segment size.
+    pub fn with_sha256_adaptive_recursion(self) -> Self {
+        assert_eq!(
+            risc0_circuit_recursion::adaptive::SHA256_ADAPTIVE_PROGRAMS.len(),
+            risc0_circuit_recursion::adaptive::SHA256_ADAPTIVE_SPECS.len(),
+            "adaptive control IDs must be regenerated before proving"
+        );
+        Self {
+            hashfn: "sha-256".to_owned(),
+            control_ids: crate::receipt::succinct::adaptive_sha256_control_ids(
+                self.max_segment_po2,
+            ),
+            ..self
+        }
+    }
+
+    /// Recognize the explicit adaptive program set without changing the serialized options format.
+    pub fn uses_sha256_adaptive_recursion(&self) -> bool {
+        self.hashfn == "sha-256"
+            && !self.control_ids.is_empty()
+            && self.control_ids
+                == crate::receipt::succinct::adaptive_sha256_control_ids(self.max_segment_po2)
+    }
+
     /// Construct a [ProverOpts] ready to prove segments with up to the given max cycle count as a
     /// power of two (po2). All fields are equal to the default expect where they need to be
     /// adjusted to support a larger po2.

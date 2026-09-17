@@ -15,6 +15,8 @@
 fn main() {
     #[cfg(feature = "prove")]
     download_zkr();
+    #[cfg(feature = "prove")]
+    download_adaptive_zkr();
 }
 
 #[cfg(feature = "prove")]
@@ -70,4 +72,32 @@ fn download_zkr() {
          Expected SHA-256: {SHA256_HASH}. This custom archive is not hosted upstream.",
         src_path.display()
     );
+}
+
+/// Copy the separately checksummed optional program bundle without modifying the legacy bundle.
+#[cfg(feature = "prove")]
+fn download_adaptive_zkr() {
+    use sha2::{Digest, Sha256};
+    use std::{env, fs, path::PathBuf};
+    let name = "recursion_zkr_sha256_adaptive.zip";
+    let source = env::var("RECURSION_ADAPTIVE_SRC_PATH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("src").join(name));
+    let target = PathBuf::from(env::var("OUT_DIR").unwrap()).join(name);
+    let expected = include_str!("src/recursion_zkr_sha256_adaptive.sha256").trim();
+    println!("cargo:rerun-if-env-changed=RECURSION_ADAPTIVE_SRC_PATH");
+    println!("cargo:rerun-if-changed={}", source.display());
+    println!("cargo:rerun-if-changed=src/recursion_zkr_sha256_adaptive.sha256");
+    if env::var("DOCS_RS").is_ok() {
+        fs::write(target, b"").unwrap();
+        return;
+    }
+    let matches = |path: &PathBuf| {
+        fs::read(path).is_ok_and(|data| hex::encode(Sha256::digest(&data)) == expected)
+    };
+    if matches(&target) {
+        return;
+    }
+    assert!(matches(&source), "adaptive recursion archive missing/checksum mismatch at {}; run git lfs pull in this backend revision", source.display());
+    fs::copy(source, target).unwrap();
 }

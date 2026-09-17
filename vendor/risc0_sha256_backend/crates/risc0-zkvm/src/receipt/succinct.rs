@@ -302,6 +302,20 @@ pub(crate) fn allowed_control_ids(
     }))
 }
 
+/// Return the pinned adaptive SHA-256 program IDs for the supported RV32IM segment sizes.
+pub(crate) fn adaptive_sha256_control_ids(po2_max: usize) -> Vec<Digest> {
+    risc0_circuit_recursion::adaptive::SHA256_ADAPTIVE_PROGRAMS
+        .iter()
+        .filter(|(name, _, _)| {
+            name.strip_prefix("lift_rv32im_v2_sha256_")
+                .and_then(|s| s.strip_suffix(".zkr"))
+                .and_then(|s| s.parse::<usize>().ok())
+                .map_or(true, |po2| po2 <= po2_max)
+        })
+        .map(|(_, _, id)| *id)
+        .collect()
+}
+
 /// Constructs the root for the set of allowed control IDs, given a maximum cycle count as a po2.
 pub(crate) fn allowed_control_root(
     hash_name: impl AsRef<str> + 'static,
@@ -336,6 +350,17 @@ pub struct SuccinctReceiptVerifierParameters {
 }
 
 impl SuccinctReceiptVerifierParameters {
+    /// Trust only the optional adaptive SHA-256 program set, independently of legacy receipts.
+    pub fn sha256_adaptive(po2_max: usize) -> anyhow::Result<Self> {
+        Ok(Self {
+            control_root: MerkleGroup::new(adaptive_sha256_control_ids(po2_max))?
+                .calc_root(hash_suite_from_name("sha-256").unwrap().hashfn.as_ref()),
+            inner_control_root: None,
+            proof_system_info: PROOF_SYSTEM_INFO,
+            circuit_info: CircuitImpl::CIRCUIT_INFO,
+        })
+    }
+
     /// Construct verifier parameters that will accept receipts with control any of the default
     /// control ID associated with cycle counts as powers of two (po2) up to the given max
     /// inclusive.

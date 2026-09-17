@@ -33,7 +33,9 @@ fn get_zkr(name: &str, hashfn: &str) -> Result<(Program, Digest)> {
 
     let program_name = hash_specific_name(name.to_string(), hashfn);
     let recursion_po2 = match (hashfn, name) {
-        ("sha-256", "join.zkr" | "identity.zkr" | "resolve.zkr" | "union.zkr") => SHA256_RECURSION_PO2,
+        ("sha-256", "join.zkr" | "identity.zkr" | "resolve.zkr" | "union.zkr") => {
+            SHA256_RECURSION_PO2
+        }
         ("sha-256", name) if name.starts_with("lift_rv32im_v2_") => SHA256_RECURSION_PO2,
         _ => RECURSION_PO2,
     };
@@ -128,4 +130,34 @@ pub fn resolve_unwrap_povw(hashfn: &str) -> Result<(Program, Digest)> {
 
 pub fn unwrap_povw(hashfn: &str) -> Result<(Program, Digest)> {
     get_zkr("unwrap_povw.zkr", hashfn)
+}
+
+/// Load only a registered adaptive program and its precomputed domain-specific control ID.
+pub fn adaptive(name: &str) -> Result<(Program, Digest)> {
+    let (_, po2, id) = risc0_circuit_recursion::adaptive::SHA256_ADAPTIVE_PROGRAMS
+        .iter()
+        .find(|(n, _, _)| *n == name)
+        .ok_or_else(|| anyhow!("unsupported adaptive SHA-256 program: {name}"))?;
+    Ok((
+        risc0_circuit_recursion::prove::zkr::get_zkr(name, *po2)?,
+        *id,
+    ))
+}
+
+/// Read the input domain only for dispatch; the selected circuit cryptographically checks it again.
+pub fn sha256_po2<Claim>(receipt: &crate::SuccinctReceipt<Claim>) -> Result<usize> {
+    use risc0_zkp::adapter::CircuitInfo;
+    anyhow::ensure!(
+        receipt.hashfn == "sha-256",
+        "adaptive recursion requires SHA-256"
+    );
+    let po2 = *receipt
+        .seal
+        .get(risc0_circuit_recursion::CircuitImpl::OUTPUT_SIZE)
+        .ok_or_else(|| anyhow!("truncated recursion proof header"))? as usize;
+    anyhow::ensure!(
+        (19..=21).contains(&po2),
+        "unsupported SHA-256 recursion domain: {po2}"
+    );
+    Ok(po2)
 }

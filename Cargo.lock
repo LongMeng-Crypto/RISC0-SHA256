@@ -3754,6 +3754,8 @@ dependencies = [
  "anyhow",
  "risc0-sha256-resolve-methods",
  "risc0-zkvm",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

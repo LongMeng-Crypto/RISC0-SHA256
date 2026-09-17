@@ -903,6 +903,15 @@ pub struct VerifierContext {
 }
 
 impl VerifierContext {
+    /// Construct the verifier context for explicitly opted-in adaptive SHA-256 receipts.
+    pub fn sha256_adaptive(po2_max: usize) -> anyhow::Result<Self> {
+        Ok(
+            Self::from_max_po2_with_hashfn("sha-256", po2_max)?.with_succinct_verifier_parameters(
+                SuccinctReceiptVerifierParameters::sha256_adaptive(po2_max)?,
+            ),
+        )
+    }
+
     /// Create an empty [VerifierContext].
     pub fn empty() -> Self {
         Self {
@@ -951,10 +960,7 @@ impl VerifierContext {
     ///
     /// This mirrors `from_max_po2_with_hashfn` without the stability gate so downstream
     /// benchmark crates can verify receipts produced by non-default hash suites.
-    pub fn from_max_po2_with_hashfn_public(
-        hashfn: &str,
-        po2_max: usize,
-    ) -> anyhow::Result<Self> {
+    pub fn from_max_po2_with_hashfn_public(hashfn: &str, po2_max: usize) -> anyhow::Result<Self> {
         Self::from_max_po2_with_hashfn(hashfn, po2_max)
     }
 
